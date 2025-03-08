@@ -1,11 +1,25 @@
 <?php
 
 use Livewire\Volt\Component;
+use Livewire\Attributes\Title;
+use App\Models\Product;
+use App\Models\Customer;
 
 new class extends Component {
     public $salesData = [50, 60, 70, 85, 90, 100, 120];
     public $bestSellersData = [30, 45, 25];
     public $bestSellersLabels = ['Product A', 'Product B', 'Product C'];
+    // public $totalProducts;
+    // public $totalCustomers;
+
+    #[Title('Dashboard')]
+    public function with()
+    {
+        return [
+            'totalProducts' => Product::all()->count(),
+            'totalCustomers' => Customer::all()->count(),
+        ];
+    }
 }; ?>
 
 <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
@@ -86,7 +100,7 @@ new class extends Component {
                 </svg>
                 <div>
                     <h3 class="text-xl font-bold text-blue-500">Total Customers</h3>
-                    <p class="text-4xl font-semibold text-blue-500">5,200</p>
+                    <p class="text-4xl font-semibold text-blue-500">{{ number_format($totalCustomers) }}</p>
                 </div>
             </div>
         </div>
@@ -99,49 +113,116 @@ new class extends Component {
                 </svg>
                 <div>
                     <h3 class="text-xl font-bold text-purple-500">Total Products</h3>
-                    <p class="text-4xl font-semibold text-purple-500">1,000</p>
+                    <p class="text-4xl font-semibold text-purple-500">{{ number_format($totalProducts) }}</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Sales Graph -->
-    <div x-data x-init="() => {
-        let salesChart;
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-1">
+        <!-- Sales Graph -->
+        <div x-data="{
+            period: 'week',
+            salesChart: null,
+            weekLabels: ['Monday, November 20', 'Tuesday, November 21', 'Wednesday, November 22', 'Thursday, November 23', 'Friday, November 24', 'Saturday, November 25', 'Sunday, November 26'],
+            monthLabels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            yearLabels: ['2018', '2019', '2020', '2021', '2022', '2023'],
+            weekData: [50, 60, 70, 85, 90, 100, 120],
+            monthData: [65, 59, 80, 81, 56, 55, 40, 75, 82, 96, 70, 85],
+            yearData: [45, 55, 65, 75, 85, 95]
+        }" x-init="() => {
+            function initSalesChart() {
+                if (salesChart) {
+                    salesChart.destroy();
+                }
 
-        function initSalesChart() {
-            if (salesChart) {
-                salesChart.destroy();
+                const isDarkMode = document.documentElement.classList.contains('dark');
+                console.log(isDarkMode);
+                const textColor = isDarkMode ? '#fff' : '#000';
+                const gridColor = isDarkMode ? '#374151' : '#e5e7eb';
+
+                const ctx = document.getElementById('salesChart').getContext('2d');
+                salesChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: period === 'week' ? weekLabels : period === 'month' ? monthLabels : yearLabels,
+                        datasets: [{
+                            label: 'Sales',
+                            data: period === 'week' ? weekData : period === 'month' ? monthData : yearData,
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Sales Performance Overview',
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                },
+                                padding: {
+                                    top: 10,
+                                    bottom: 20
+                                },
+                                color: textColor
+                            },
+                            legend: {
+                                labels: {
+                                    color: textColor
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: {
+                                    color: textColor
+                                },
+                                grid: {
+                                    color: gridColor
+                                }
+                            },
+                            y: {
+                                ticks: {
+                                    color: textColor
+                                },
+                                grid: {
+                                    color: gridColor
+                                }
+                            }
+                        }
+                    }
+                });
             }
 
-            const ctx = document.getElementById('salesChart').getContext('2d');
-            salesChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                    datasets: [{
-                        label: 'Sales',
-                        data: $wire.salesData,
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        borderWidth: 2
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false
-                }
-            });
-        }
-
-        initSalesChart();
-
-        $wire.on('refreshCharts', () => {
             initSalesChart();
-        });
-    }"
-        class="relative h-96 overflow-hidden rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-gray-800">
-        <canvas id="salesChart"></canvas>
+
+            $wire.on('refreshCharts', () => {
+                initSalesChart();
+            });
+
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                initSalesChart();
+            });
+        }"
+            class="relative h-96 overflow-hidden rounded-xl border border-neutral-200 bg-white p-6 shadow-lg dark:border-neutral-700 dark:bg-gray-800">
+            <div class="mb-4 flex gap-2">
+                <button @click="period = 'week'; initSalesChart()"
+                    :class="{ 'bg-blue-500 text-white': period === 'week', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': period !== 'week' }"
+                    class="px-4 py-2 rounded-lg">Week</button>
+                <button @click="period = 'month'; initSalesChart()"
+                    :class="{ 'bg-blue-500 text-white': period === 'month', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': period !== 'month' }"
+                    class="px-4 py-2 rounded-lg">Month</button>
+                <button @click="period = 'year'; initSalesChart()"
+                    :class="{ 'bg-blue-500 text-white': period === 'year', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': period !== 'year' }"
+                    class="px-4 py-2 rounded-lg">Year</button>
+            </div>
+            <canvas class="mb-12" id="salesChart"></canvas>
+        </div>
     </div>
 
     <!-- Best Sellers and Recent Activities -->
@@ -167,7 +248,17 @@ new class extends Component {
                     },
                     options: {
                         responsive: true,
-                        maintainAspectRatio: false
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                align: 'center',
+                                labels: {
+                                    boxWidth: 15,
+                                    padding: 15
+                                }
+                            }
+                        }
                     }
                 });
             }
@@ -180,40 +271,103 @@ new class extends Component {
         }"
             class="relative h-96 overflow-hidden rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-gray-800">
             <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Best Sellers</h3>
-            <canvas id="bestSellersChart"></canvas>
+            <div class="h-3/4">
+                <canvas id="bestSellersChart"></canvas>
+            </div>
         </div>
 
 
-        <!-- Recent Activities -->
+        <!-- Recently Added Products -->
         <div class="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-gray-800">
-            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Recent Activities</h3>
+            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Recently Added Products</h3>
             <div class="space-y-4">
-                <div class="flex items-center gap-4 text-gray-700 dark:text-gray-300">
-                    <div class="h-2 w-2 rounded-full bg-green-500"></div>
-                    <div>
-                        <p class="font-semibold">New order #1234</p>
-                        <p class="text-sm">2 minutes ago</p>
+                <!-- Product 1 -->
+                <div
+                    class="flex justify-between items-center text-gray-700 dark:text-gray-300 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600 dark:text-blue-300"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-semibold">Product Name 1</p>
+                            <p class="text-sm">Stock: 50 | Price: $10.99/unit</p>
+                        </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-4 text-gray-700 dark:text-gray-300">
-                    <div class="h-2 w-2 rounded-full bg-blue-500"></div>
-                    <div>
-                        <p class="font-semibold">Payment received #5678</p>
-                        <p class="text-sm">15 minutes ago</p>
+                <!-- Product 2 -->
+                <div
+                    class="flex justify-between items-center text-gray-700 dark:text-gray-300 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600 dark:text-green-300"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-semibold">Product Name 2</p>
+                            <p class="text-sm">Stock: 30 | Price: $15.49/unit</p>
+                        </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-4 text-gray-700 dark:text-gray-300">
-                    <div class="h-2 w-2 rounded-full bg-red-500"></div>
-                    <div>
-                        <p class="font-semibold">Refund processed #9012</p>
-                        <p class="text-sm">1 hour ago</p>
+                <!-- Product 3 -->
+                <div
+                    class="flex justify-between items-center text-gray-700 dark:text-gray-300 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-6 w-6 text-purple-600 dark:text-purple-300" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-semibold">Product Name 3</p>
+                            <p class="text-sm">Stock: 75 | Price: $8.99/unit</p>
+                        </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-4 text-gray-700 dark:text-gray-300">
-                    <div class="h-2 w-2 rounded-full bg-yellow-500"></div>
-                    <div>
-                        <p class="font-semibold">New product added</p>
-                        <p class="text-sm">2 hours ago</p>
+                <!-- Product 4 -->
+                <div
+                    class="flex justify-between items-center text-gray-700 dark:text-gray-300 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600 dark:text-red-300"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-semibold">Product Name 4</p>
+                            <p class="text-sm">Stock: 20 | Price: $12.99/unit</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Product 5 -->
+                <div
+                    class="flex justify-between items-center text-gray-700 dark:text-gray-300 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-6 w-6 text-yellow-600 dark:text-yellow-300" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-semibold">Product Name 5</p>
+                            <p class="text-sm">Stock: 40 | Price: $9.99/unit</p>
+                        </div>
                     </div>
                 </div>
             </div>

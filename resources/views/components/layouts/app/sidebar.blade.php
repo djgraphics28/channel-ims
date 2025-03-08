@@ -7,19 +7,22 @@
         <flux:sidebar sticky stashable class="border-r border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
             <flux:sidebar.toggle class="lg:hidden" icon="x-mark" />
 
-            <a href="{{ route('dashboard') }}" class="mr-5 flex items-center space-x-2" wire:navigate>
+            <a href="{{ route('dashboard') }}" class="mr-5 flex items-center space-x-2" >
                 <x-app-logo />
             </a>
 
             <flux:navlist variant="outline">
                 <flux:navlist.group :heading="__('Platform')" class="grid">
-                    <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>{{ __('Dashboard') }}</flux:navlist.item>
-                    <flux:navlist.item icon="list-bullet"  :href="route('branches')" wire:navigate>{{ __('Branches') }}</flux:navlist.item>
-                    <flux:navlist.item icon="information-circle"  wire:navigate>{{ __('Cash Flow') }}</flux:navlist.item>
-                    <flux:navlist.item icon="document-text" :href="route('categories')"  wire:navigate>{{ __('Categories') }}</flux:navlist.item>
-                    <flux:navlist.item icon="users"  wire:navigate>{{ __('User Management') }}</flux:navlist.item>
-                    <flux:navlist.item icon="inbox"  wire:navigate>{{ __('Inventory Management') }}</flux:navlist.item>
-                    <flux:navlist.item icon="document"  wire:navigate>{{ __('Reports') }}</flux:navlist.item>
+                    <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" >{{ __('Dashboard') }}</flux:navlist.item>
+                    <flux:navlist.item icon="list-bullet"  :href="route('branches')" >{{ __('Branches') }}</flux:navlist.item>
+                    <flux:navlist.item icon="information-circle"  >{{ __('Cash Flow') }}</flux:navlist.item>
+                    <flux:navlist.item icon="document-text" :href="route('categories')"  >{{ __('Categories') }}</flux:navlist.item>
+
+                    <flux:navlist.item icon="document-text" :href="route('units')"  >{{ __('Units') }}</flux:navlist.item>
+                    <flux:navlist.item icon="users" :href="route('customers')"  >{{ __('Customers') }}</flux:navlist.item>
+                    <flux:navlist.item icon="users"  >{{ __('User Management') }}</flux:navlist.item>
+                    <flux:navlist.item icon="inbox" :href="route('products')" >{{ __('Products') }}</flux:navlist.item>
+                    <flux:navlist.item icon="document"  >{{ __('Reports') }}</flux:navlist.item>
                 </flux:navlist.group>
             </flux:navlist>
 
@@ -66,7 +69,7 @@
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
-                        <flux:menu.item href="/settings/profile" icon="cog" wire:navigate>{{ __('Account Settings') }}</flux:menu.item>
+                        <flux:menu.item href="/settings/profile" icon="cog" >{{ __('Account Settings') }}</flux:menu.item>
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />
@@ -116,7 +119,7 @@
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
-                        <flux:menu.item href="/settings/profile" icon="cog" wire:navigate>{{ __('Settings') }}</flux:menu.item>
+                        <flux:menu.item href="/settings/profile" icon="cog" >{{ __('Settings') }}</flux:menu.item>
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />

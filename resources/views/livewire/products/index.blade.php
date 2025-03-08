@@ -2,7 +2,7 @@
 
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
-use App\Models\Branch;
+use App\Models\Product;
 use Livewire\Attributes\Title;
 
 new class extends Component {
@@ -10,23 +10,38 @@ new class extends Component {
 
     public $search = '';
     public $showModal = false;
-    public $branch;
+    public $product;
     public $isEditing = false;
     public $confirmingDelete = false;
-    public $branchToDelete;
+    public $productToDelete;
+    public $pageRows = 10;
 
     public $form = [
+        'category_id' => '',
         'code' => '',
         'name' => '',
-        'address' => '',
+        'description' => '',
+        'unit_id' => '',
+        'stock' => 0,
+        'buying_price' => 0,
+        'selling_price' => 0,
+        'created_by' => '',
+        'updated_by' => '',
     ];
 
     public function rules()
     {
         return [
+            'form.category_id' => 'nullable|string',
             'form.code' => 'required|string|max:50',
             'form.name' => 'required|string|max:255',
-            'form.address' => 'required|string',
+            'form.description' => 'nullable|string',
+            'form.unit_id' => 'nullable|string',
+            'form.stock' => 'required|integer|min:0',
+            'form.buying_price' => 'required|numeric|min:0',
+            'form.selling_price' => 'required|numeric|min:0',
+            'form.created_by' => 'nullable|string',
+            'form.updated_by' => 'nullable|string',
         ];
     }
 
@@ -37,10 +52,10 @@ new class extends Component {
         $this->showModal = true;
     }
 
-    public function edit(Branch $branch)
+    public function edit(Product $product)
     {
-        $this->branch = $branch;
-        $this->form = $branch->only(['code', 'name', 'address']);
+        $this->product = $product;
+        $this->form = $product->only(['category_id', 'code', 'name', 'description', 'unit_id', 'stock', 'buying_price', 'selling_price', 'created_by', 'updated_by']);
         $this->isEditing = true;
         $this->showModal = true;
     }
@@ -50,33 +65,33 @@ new class extends Component {
         $this->validate();
 
         if ($this->isEditing) {
-            $this->branch->update($this->form);
-            $this->dispatch('notify', 'Branch updated successfully!', 'success');
+            $this->product->update($this->form);
+            $this->dispatch('notify', 'Product updated successfully!', 'success');
         } else {
-            Branch::create($this->form);
-            $this->dispatch('notify', 'Branch created successfully!', 'success');
+            Product::create($this->form);
+            $this->dispatch('notify', 'Product created successfully!', 'success');
         }
 
         $this->showModal = false;
         $this->resetForm();
     }
 
-    public function confirmDelete($branchId)
+    public function confirmDelete($productId)
     {
-        $this->branchToDelete = $branchId;
+        $this->productToDelete = $productId;
         $this->confirmingDelete = true;
     }
 
     public function delete()
     {
-        $branch = Branch::find($this->branchToDelete);
-        if ($branch) {
-            $branch->delete();
-            $this->dispatch('notify', 'Branch deleted successfully!', 'success');
+        $product = Product::find($this->productToDelete);
+        if ($product) {
+            $product->delete();
+            $this->dispatch('notify', 'Product deleted successfully!', 'success');
         }
 
         $this->confirmingDelete = false;
-        $this->branchToDelete = null;
+        $this->productToDelete = null;
     }
 
     public function updatingSearch()
@@ -84,23 +99,35 @@ new class extends Component {
         $this->resetPage();
     }
 
+    public function updatingPageRows()
+    {
+        $this->resetPage();
+    }
+
     private function resetForm()
     {
         $this->form = [
+            'category_id' => '',
             'code' => '',
             'name' => '',
-            'address' => '',
+            'description' => '',
+            'unit_id' => '',
+            'stock' => 0,
+            'buying_price' => 0,
+            'selling_price' => 0,
+            'created_by' => '',
+            'updated_by' => '',
         ];
-        $this->branch = null;
+        $this->product = null;
     }
 
-    #[Title('Branches')]
+    #[Title('Products')]
     public function with(): array
     {
         return [
-            'branches' => Branch::query()
+            'products' => Product::query()
                 ->where('name', 'like', '%' . $this->search . '%')
-                ->paginate(10),
+                ->paginate($this->pageRows),
         ];
     }
 }; ?>
@@ -123,7 +150,7 @@ new class extends Component {
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="m1 9 4-4-4-4" />
                         </svg>
-                        <span class="ml-1 text-sm font-medium text-gray-500 dark:text-gray-400 md:ml-2">Branches</span>
+                        <span class="ml-1 text-sm font-medium text-gray-500 dark:text-gray-400 md:ml-2">Products</span>
                     </div>
                 </li>
             </ol>
@@ -133,13 +160,22 @@ new class extends Component {
     <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
         <div class="flex items-center justify-between">
             <div class="w-1/3">
-                <input wire:model.live="search" type="search" placeholder="Search branches..."
+                <input wire:model.live="search" type="search" placeholder="Search products..."
                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
             </div>
+            <div class="flex items-center space-x-2">
+                <select wire:model.live="pageRows"
+                    class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                    <option value="10">10 per page</option>
+                    <option value="25">25 per page</option>
+                    <option value="50">50 per page</option>
+                    <option value="100">100 per page</option>
+                </select>
+            </div>
         </div>
-        @if ($branches->isEmpty())
+        @if ($products->isEmpty())
             <div class="flex flex-col items-center justify-center p-8">
-                <p class="mb-4 text-gray-500 dark:text-gray-400">No branches found</p>
+                <p class="mb-4 text-gray-500 dark:text-gray-400">No products found</p>
                 <button wire:click="create"
                     class="inline-flex items-center justify-center rounded-lg bg-green-600 px-6 py-3 text-sm font-medium text-white transition-all duration-200 ease-in-out hover:bg-green-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 active:bg-green-800 dark:bg-green-500 dark:hover:bg-green-600 dark:focus:ring-green-400">
                     <svg xmlns="http://www.w3.org/2000/svg" class="my-auto mr-2 h-5 w-5" viewBox="0 0 20 20"
@@ -148,55 +184,87 @@ new class extends Component {
                             d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
                             clip-rule="evenodd" />
                     </svg>
-                    Add Branch
+                    Add Product
                 </button>
             </div>
         @else
             <div class="flex justify-end">
                 <button wire:click="create"
                     class="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 dark:bg-green-500 dark:hover:bg-green-600">
-                    Add Branch
+                    Add Product
                 </button>
             </div>
 
             <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead class="bg-gray-50 dark:bg-gray-800">
-                        <tr>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Code</th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Name</th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Address</th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-                        @foreach ($branches as $branch)
-                            <tr class="dark:hover:bg-gray-800">
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $branch->code }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $branch->name }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $branch->address }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 space-x-2">
-                                    <button wire:click="edit({{ $branch->id }})"
-                                        class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">Edit</button>
-                                    <button wire:click="confirmDelete({{ $branch->id }})"
-                                        class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Delete</button>
-                                </td>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-800">
+                            <tr>
+                                <th
+                                    class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Code</th>
+                                <th
+                                    class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Name</th>
+                                <th
+                                    class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Stock</th>
+                                <th
+                                    class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Buying Price</th>
+                                <th
+                                    class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Selling Price</th>
+                                <th
+                                    class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Actions</th>
                             </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+                            @foreach ($products as $product)
+                                <tr x-data="{ open: false }" class="dark:hover:bg-gray-800">
+                                    <td class="px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                        {{ $product->code }}</td>
+                                    <td class="px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                        <button @click="open = !open"
+                                            class="sm:hidden text-left w-full">{{ $product->name }}</button>
+                                        <span class="hidden sm:inline">{{ $product->name }}</span>
+                                        <div x-show="open" class="sm:hidden mt-2 space-y-2">
+                                            <p><span class="font-medium">Stock:</span> {{ $product->stock }}</p>
+                                            <p><span class="font-medium">Buying Price:</span>
+                                                <strong>₱{{ $product->buying_price }}</strong>
+                                            </p>
+                                            <p><span class="font-medium">Selling Price:</span>
+                                                <strong>₱{{ $product->selling_price }}</strong>
+                                            </p>
+                                        </div>
+                                    </td>
+                                    <td
+                                        class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                        {{ $product->stock }}</td>
+                                    <td
+                                        class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                        <strong>₱{{ $product->buying_price }}</strong>
+                                    </td>
+                                    <td
+                                        class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                        <strong>₱{{ $product->selling_price }}</strong>
+                                    </td>
+                                    <td class="px-4 sm:px-6 py-2 sm:py-4 space-x-2 text-sm">
+                                        <button wire:click="edit({{ $product->id }})"
+                                            class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">Edit</button>
+                                        <button wire:click="confirmDelete({{ $product->id }})"
+                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Delete</button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <div class="mt-4">
-                {{ $branches->links() }}
+                {{ $products->links() }}
             </div>
         @endif
     </div>
@@ -212,6 +280,13 @@ new class extends Component {
                     <form wire:submit="save">
                         <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="mb-4">
+                                <flux:input wire:model="form.category_id" :label="__('Category')" type="text"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('form.category_id')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
                                 <flux:input wire:model="form.code" :label="__('Code')" type="text" required
                                     class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
                                 @error('form.code')
@@ -226,9 +301,39 @@ new class extends Component {
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <flux:input wire:model="form.address" :label="__('Address')" type="text" required
+                                <flux:input wire:model="form.description" :label="__('Description')" type="text"
                                     class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.address')
+                                @error('form.description')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="form.unit_id" :label="__('Unit')" type="text"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('form.unit_id')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="form.stock" :label="__('Stock')" type="number" required
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('form.stock')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="form.buying_price" :label="__('Buying Price')" type="number"
+                                    step="0.01" required
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('form.buying_price')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="form.selling_price" :label="__('Selling Price')"
+                                    type="number" step="0.01" required
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('form.selling_price')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
@@ -272,11 +377,11 @@ new class extends Component {
                         <div class="sm:flex sm:items-start">
                             <div class="mt-3 text-center sm:mt-0 sm:text-left">
                                 <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100">
-                                    Delete Branch
+                                    Delete Product
                                 </h3>
                                 <div class="mt-2">
                                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        Are you sure you want to delete this branch? This action cannot be undone.
+                                        Are you sure you want to delete this product? This action cannot be undone.
                                     </p>
                                 </div>
                             </div>

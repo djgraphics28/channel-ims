@@ -12,6 +12,8 @@ new class extends Component {
     public $showModal = false;
     public $category;
     public $isEditing = false;
+    public $confirmingDelete = false;
+    public $categoryToDelete;
 
     public $form = [
         'name' => '',
@@ -59,13 +61,19 @@ new class extends Component {
 
     public function confirmDelete($categoryId)
     {
-        $this->dispatch('confirm-delete', $categoryId);
+        $this->categoryToDelete = $categoryId;
+        $this->confirmingDelete = true;
     }
 
-    public function delete(Category $category)
+    public function delete()
     {
-        $category->delete();
-        $this->dispatch('notify', 'Category deleted successfully!', 'success');
+        $category = Category::find($this->categoryToDelete);
+        if ($category) {
+            $category->delete();
+            $this->dispatch('notify', 'Category deleted successfully!', 'success');
+        }
+        $this->confirmingDelete = false;
+        $this->categoryToDelete = null;
     }
 
     private function resetForm()
@@ -235,6 +243,43 @@ new class extends Component {
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($confirmingDelete)
+        <div class="fixed inset-0 z-10 overflow-y-auto">
+            <div class="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                    <div class="absolute inset-0 bg-gray-500 dark:bg-gray-800 opacity-75"></div>
+                </div>
+                <div
+                    class="inline-block transform overflow-hidden rounded-lg bg-white dark:bg-gray-900 text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
+                    <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div class="sm:flex sm:items-start">
+                            <div class="mt-3 text-center sm:mt-0 sm:text-left">
+                                <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100">
+                                    Delete Category
+                                </h3>
+                                <div class="mt-2">
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                                        Are you sure you want to delete this category? This action cannot be undone.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-800 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                        <button wire:click="delete"
+                            class="inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:bg-red-500 dark:hover:bg-red-600 dark:focus:ring-red-400 sm:ml-3 sm:w-auto sm:text-sm">
+                            Delete
+                        </button>
+                        <button wire:click="$set('confirmingDelete', false)"
+                            class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-base font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-offset-2 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                            Cancel
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

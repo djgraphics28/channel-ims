@@ -21,6 +21,9 @@ Route::middleware(['auth'])->group(function () {
 
     Volt::route('branches', 'branches.index')->name('branches');
     Volt::route('categories', 'categories.index')->name('categories');
+    Volt::route('units', 'units.index')->name('units');
+    Volt::route('customers', 'customers.index')->name('customers');
+    Volt::route('products', 'products.index')->name('products');
 });
 
 require __DIR__.'/auth.php';
