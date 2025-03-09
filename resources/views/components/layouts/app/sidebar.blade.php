@@ -14,14 +14,22 @@
             <flux:navlist variant="outline">
                 <flux:navlist.group :heading="__('Platform')" class="grid">
                     <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" >{{ __('Dashboard') }}</flux:navlist.item>
-                    <flux:navlist.item icon="list-bullet"  :href="route('branches')" >{{ __('Branches') }}</flux:navlist.item>
-                    <flux:navlist.item icon="information-circle"  >{{ __('Cash Flow') }}</flux:navlist.item>
-                    <flux:navlist.item icon="document-text" :href="route('categories')"  >{{ __('Categories') }}</flux:navlist.item>
-
-                    <flux:navlist.item icon="document-text" :href="route('units')"  >{{ __('Units') }}</flux:navlist.item>
+                    <flux:navlist.item icon="list-bullet"  :href="route('branches')"  badge="2">{{ __('Branches') }}</flux:navlist.item>
+                    <flux:navlist.group expandable heading="Cash Flow" class="hidden lg:grid">
+                        <flux:navlist.item href="#">Money-In</flux:navlist.item>
+                        <flux:navlist.item href="#">Money-Out</flux:navlist.item>
+                    </flux:navlist.group>
+                    <flux:navlist.group expandable heading="Products Management" class="hidden lg:grid">
+                        <flux:navlist.item badge="12,000" icon="inbox" :href="route('products')" >{{ __('Products') }}</flux:navlist.item>
+                        <flux:navlist.item badge="50" icon="document-text" :href="route('categories')"  >{{ __('Categories') }}</flux:navlist.item>
+                        <flux:navlist.item badge="35" icon="document-text" :href="route('units')"  >{{ __('Units') }}</flux:navlist.item>
+                    </flux:navlist.group>
                     <flux:navlist.item icon="users" :href="route('customers')"  >{{ __('Customers') }}</flux:navlist.item>
-                    <flux:navlist.item icon="users"  >{{ __('User Management') }}</flux:navlist.item>
-                    <flux:navlist.item icon="inbox" :href="route('products')" >{{ __('Products') }}</flux:navlist.item>
+                    <flux:navlist.group expandable heading="User Management" class="hidden lg:grid">
+                        <flux:navlist.item  icon="users" href="#">Users</flux:navlist.item>
+                        <flux:navlist.item  icon="users" href="#">Roles</flux:navlist.item>
+                    </flux:navlist.group>
+
                     <flux:navlist.item icon="document"  >{{ __('Reports') }}</flux:navlist.item>
                 </flux:navlist.group>
             </flux:navlist>
