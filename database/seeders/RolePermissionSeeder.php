@@ -15,7 +15,57 @@ class RolePermissionSeeder extends Seeder
     public function run(): void
     {
         // Create Permissions
-        $permissions = ['manage users', 'manage roles', 'manage students', 'manage admissions'];
+        $permissions = [
+            'users.view',
+            'users.create',
+            'users.edit',
+            'users.delete',
+
+            'roles.view',
+            'roles.create',
+            'roles.edit',
+            'roles.delete',
+
+            'units.view',
+            'units.create',
+            'units.edit',
+            'units.delete',
+
+            'categories.view',
+            'categories.create',
+            'categories.edit',
+            'categories.delete',
+
+            'branches.view',
+            'branches.create',
+            'branches.edit',
+            'branches.delete',
+
+            'brands.view',
+            'brands.create',
+            'brands.edit',
+            'brands.delete',
+
+            'products.view',
+            'products.create',
+            'products.edit',
+            'products.delete',
+
+            'quotations.view',
+            'quotations.create',
+            'quotations.edit',
+            'quotations.delete',
+
+            'dashboard.view',
+            'settings.view',
+            'cashflow.view',
+            'reports.view',
+
+            'customers.view',
+            'customers.create',
+            'customers.edit',
+            'customers.delete',
+        ];
 
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission]);

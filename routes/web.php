@@ -11,7 +11,7 @@ Route::get('/', function () {
 //     ->middleware(['auth', 'verified'])
 //     ->name('dashboard');
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth','check.active'])->group(function () {
     Volt::route('dashboard', 'dashboard')->name('dashboard');
     Route::redirect('settings', 'settings/profile');
 
@@ -19,6 +19,8 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/password', 'settings.password')->name('settings.password');
     Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
 
+    Volt::route('users', 'users.index')->name('users');
+    Volt::route('roles', 'roles.index')->name('roles');
     Volt::route('branches', 'branches.index')->name('branches');
     Volt::route('categories', 'categories.index')->name('categories');
     Volt::route('units', 'units.index')->name('units');

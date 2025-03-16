@@ -216,6 +216,8 @@ new class extends Component {
 
         // Trigger the print function in the browser
         $this->dispatch('print-receipt');
+        $this->receiptModal = false;
+        $this->cart = [];
     }
     #[Title('Create Quotation')]
     public function with(): array
@@ -473,7 +475,7 @@ new class extends Component {
 
     @if ($receiptModal)
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div class="bg-white dark:bg-gray-800 p-8 rounded-lg w-120" id="printable-receipt">
+            <div class="bg-white dark:bg-gray-800 p-8 rounded-lg w-[13cm]" id="printable-receipt">
                 <!-- Receipt Header -->
                 <div class="text-center mb-4">
                     <h2 class="text-xl font-bold dark:text-white">Company Name</h2>

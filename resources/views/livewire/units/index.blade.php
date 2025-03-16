@@ -49,10 +49,10 @@ new class extends Component {
 
         if ($this->isEditing) {
             $this->unit->update($this->form);
-            $this->dispatch('notify', 'Unit updated successfully!', 'success');
+            flash()->success('Unit updated successfully!');
         } else {
             Unit::create($this->form);
-            $this->dispatch('notify', 'Unit created successfully!', 'success');
+            flash()->success('Unit created successfully!');
         }
 
         $this->showModal = false;
@@ -70,7 +70,7 @@ new class extends Component {
         $unit = Unit::find($this->unitToDelete);
         if ($unit) {
             $unit->delete();
-            $this->dispatch('notify', 'Unit deleted successfully!', 'success');
+            flash()->success('Unit deleted successfully!');
         }
 
         $this->confirmingDelete = false;

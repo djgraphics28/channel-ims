@@ -66,10 +66,10 @@ new class extends Component {
 
         if ($this->isEditing) {
             $this->product->update($this->form);
-            $this->dispatch('notify', 'Product updated successfully!', 'success');
+            flash()->success('Product updated successfully!');
         } else {
             Product::create($this->form);
-            $this->dispatch('notify', 'Product created successfully!', 'success');
+            flash()->success('Product created successfully!');
         }
 
         $this->showModal = false;
@@ -87,7 +87,7 @@ new class extends Component {
         $product = Product::find($this->productToDelete);
         if ($product) {
             $product->delete();
-            $this->dispatch('notify', 'Product deleted successfully!', 'success');
+            flash()->success('Product deleted successfully!');
         }
 
         $this->confirmingDelete = false;

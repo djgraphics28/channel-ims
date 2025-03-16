@@ -2,45 +2,56 @@
 
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
-use App\Models\Branch;
+use App\Models\User;
 use Livewire\Attributes\Title;
+use Spatie\Permission\Models\Role;
 
 new class extends Component {
     use WithPagination;
 
     public $search = '';
     public $showModal = false;
-    public $branch;
+    public $user;
     public $isEditing = false;
     public $confirmingDelete = false;
-    public $branchToDelete;
+    public $userToDelete;
+    public $roles = [];
+    public $selectedRoles = [];
 
     public $form = [
-        'code' => '',
         'name' => '',
-        'address' => '',
+        'email' => '',
+        'password' => '',
     ];
+
+    public function mount()
+    {
+        $this->roles = Role::all();
+    }
 
     public function rules()
     {
         return [
-            'form.code' => 'required|string|max:50',
             'form.name' => 'required|string|max:255',
-            'form.address' => 'required|string',
+            'form.email' => $this->isEditing ? 'required|email|unique:users,email,' . $this->user->id : 'required|email|unique:users,email',
+            'form.password' => $this->isEditing ? '' : 'required|min:8',
+            'selectedRoles' => 'array',
         ];
     }
 
     public function create()
     {
         $this->resetForm();
+        $this->selectedRoles = [];
         $this->isEditing = false;
         $this->showModal = true;
     }
 
-    public function edit(Branch $branch)
+    public function edit(User $user)
     {
-        $this->branch = $branch;
-        $this->form = $branch->only(['code', 'name', 'address']);
+        $this->user = $user;
+        $this->form = $user->only(['name', 'email']);
+        $this->selectedRoles = $user->roles->pluck('id')->toArray();
         $this->isEditing = true;
         $this->showModal = true;
     }
@@ -49,62 +60,65 @@ new class extends Component {
     {
         $this->validate();
 
+        // Convert all role IDs to integers
+        $this->selectedRoles = array_map('intval', $this->selectedRoles);
+
         if ($this->isEditing) {
-            $this->branch->update($this->form);
-            flash()->success('Branch updated successfully!');
+            $this->user->update($this->form);
+            $this->user->syncRoles($this->selectedRoles);
+            flash()->success('User updated successfully!');
         } else {
-            Branch::create($this->form);
-            flash()->success('Branch created successfully!');
+            $user = User::create($this->form);
+            $user->assignRole($this->selectedRoles);
+            flash()->success('User created successfully!');
         }
 
         $this->showModal = false;
         $this->resetForm();
     }
 
-    public function confirmDelete($branchId)
+    public function confirmDelete($userId)
     {
-        $this->branchToDelete = $branchId;
+        $this->userToDelete = $userId;
         $this->confirmingDelete = true;
     }
 
     public function delete()
     {
-        $branch = Branch::find($this->branchToDelete);
-        if ($branch) {
-            $branch->delete();
-            flash()->success('Branch deleted successfully!');
+        $user = User::find($this->userToDelete);
+        if ($user) {
+            $user->roles()->detach();
+            $user->delete();
+            flash()->success('User deleted successfully!');
         }
-
         $this->confirmingDelete = false;
-        $this->branchToDelete = null;
-    }
-
-    public function updatingSearch()
-    {
-        $this->resetPage();
+        $this->userToDelete = null;
     }
 
     private function resetForm()
     {
         $this->form = [
-            'code' => '',
             'name' => '',
-            'address' => '',
+            'email' => '',
+            'password' => '',
         ];
-        $this->branch = null;
+        $this->selectedRoles = [];
+        $this->user = null;
     }
 
-    #[Title('Branches')]
+    #[Title('Users')]
     public function with(): array
     {
         return [
-            'branches' => Branch::query()
+            'users' => User::query()
+                ->with('roles')
                 ->where('name', 'like', '%' . $this->search . '%')
                 ->paginate(10),
         ];
     }
-}; ?>
+};
 
+?>
 
 <div>
     <div class="mb-4">
@@ -123,7 +137,7 @@ new class extends Component {
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="m1 9 4-4-4-4" />
                         </svg>
-                        <span class="ml-1 text-sm font-medium text-gray-500 dark:text-gray-400 md:ml-2">Branches</span>
+                        <span class="ml-1 text-sm font-medium text-gray-500 dark:text-gray-400 md:ml-2">Users</span>
                     </div>
                 </li>
             </ol>
@@ -133,13 +147,13 @@ new class extends Component {
     <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
         <div class="flex items-center justify-between">
             <div class="w-1/3">
-                <input wire:model.live="search" type="search" placeholder="Search branches..."
+                <input wire:model.live="search" type="search" placeholder="Search users..."
                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
             </div>
         </div>
-        @if ($branches->isEmpty())
+        @if ($users->isEmpty())
             <div class="flex flex-col items-center justify-center p-8">
-                <p class="mb-4 text-gray-500 dark:text-gray-400">No branches found</p>
+                <p class="mb-4 text-gray-500 dark:text-gray-400">No users found</p>
                 <button wire:click="create"
                     class="inline-flex items-center justify-center rounded-lg bg-green-600 px-6 py-3 text-sm font-medium text-white transition-all duration-200 ease-in-out hover:bg-green-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 active:bg-green-800 dark:bg-green-500 dark:hover:bg-green-600 dark:focus:ring-green-400">
                     <svg xmlns="http://www.w3.org/2000/svg" class="my-auto mr-2 h-5 w-5" viewBox="0 0 20 20"
@@ -148,14 +162,14 @@ new class extends Component {
                             d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
                             clip-rule="evenodd" />
                     </svg>
-                    Add Branch
+                    Add User
                 </button>
             </div>
         @else
             <div class="flex justify-end">
                 <button wire:click="create"
                     class="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 dark:bg-green-500 dark:hover:bg-green-600">
-                    Add Branch
+                    Add User
                 </button>
             </div>
 
@@ -165,28 +179,43 @@ new class extends Component {
                         <tr>
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Code</th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Name</th>
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Address</th>
+                                Email</th>
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Roles</th>
+                            <th
+                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Status</th>
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-                        @foreach ($branches as $branch)
+                        @foreach ($users as $user)
                             <tr class="dark:hover:bg-gray-800">
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $branch->code }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $branch->name }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $branch->address }}</td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $user->name }}</td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $user->email }}</td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
+                                    @foreach ($user->roles as $role)
+                                        <span
+                                            class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
+                                            {{ $role->name }}
+                                        </span>
+                                    @endforeach
+                                    {{-- {{ $user->roles->pluck('name')->implode(', ') }} --}}
+                                </td>
+                                <td class="text-center">
+                                    {{-- <livewire:widget.active-status-change model="User" modelId="1" /> --}}
+                                    @livewire('widget.active-status-change', ['model' => $user, 'field' => 'is_active'], key($user->id))
+                                </td>
                                 <td class="whitespace-nowrap px-6 py-4 space-x-2">
-                                    <button wire:click="edit({{ $branch->id }})"
+                                    <button wire:click="edit({{ $user->id }})"
                                         class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">Edit</button>
-                                    <button wire:click="confirmDelete({{ $branch->id }})"
+                                    <button wire:click="confirmDelete({{ $user->id }})"
                                         class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Delete</button>
                                 </td>
                             </tr>
@@ -194,9 +223,8 @@ new class extends Component {
                     </tbody>
                 </table>
             </div>
-
             <div class="mt-4">
-                {{ $branches->links() }}
+                {{ $users->links() }}
             </div>
         @endif
     </div>
@@ -211,24 +239,45 @@ new class extends Component {
                     class="inline-block transform overflow-hidden rounded-lg bg-white dark:bg-gray-900 text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
                     <form wire:submit="save">
                         <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+
                             <div class="mb-4">
-                                <flux:input wire:model="form.code" :label="__('Code')" type="text" required
-                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.code')
-                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
-                                @enderror
-                            </div>
-                            <div class="mb-4">
-                                <flux:input wire:model="form.name" :label="__('Name')" type="text" required
+                                <flux:input wire:model="form.name" :label="__('Name')" type="text"
                                     class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
                                 @error('form.name')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <flux:input wire:model="form.address" :label="__('Address')" type="text" required
+                                <flux:input wire:model="form.email" :label="__('Email')" type="email"
                                     class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.address')
+                                @error('form.email')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="form.password" :label="__('Password')" type="password"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('form.password')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Roles</label>
+                                <div class="mt-2 space-y-2">
+                                    @foreach ($roles as $role)
+                                        <div class="flex items-center">
+                                            <input type="checkbox" wire:model="selectedRoles"
+                                                value="{{ $role->id }}"
+                                                class="h-6 w-6 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
+                                                id="role-{{ $role->id }}">
+                                            <label for="role-{{ $role->id }}"
+                                                class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                                {{ $role->name }}
+                                            </label>
+                                        </div>
+                                    @endforeach
+                                </div>
+                                @error('selectedRoles')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
@@ -249,17 +298,6 @@ new class extends Component {
         </div>
     @endif
 
-    <div x-data="{ show: false, message: '', type: '' }" x-show="show" x-transition x-init="Livewire.on('notify', (msg, type) => {
-        message = msg;
-        type = type;
-        show = true;
-        setTimeout(() => show = false, 3000);
-    })"
-        class="fixed top-5 right-5 px-4 py-2 rounded-lg shadow-md text-white"
-        :class="type === 'success' ? 'bg-green-500' : 'bg-red-500'">
-        <span x-text="message"></span>
-    </div>
-
     @if ($confirmingDelete)
         <div class="fixed inset-0 z-10 overflow-y-auto">
             <div class="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -272,11 +310,11 @@ new class extends Component {
                         <div class="sm:flex sm:items-start">
                             <div class="mt-3 text-center sm:mt-0 sm:text-left">
                                 <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100">
-                                    Delete Branch
+                                    Delete User
                                 </h3>
                                 <div class="mt-2">
                                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        Are you sure you want to delete this branch? This action cannot be undone.
+                                        Are you sure you want to delete this user? This action cannot be undone.
                                     </p>
                                 </div>
                             </div>

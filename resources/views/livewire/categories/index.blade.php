@@ -49,10 +49,10 @@ new class extends Component {
 
         if ($this->isEditing) {
             $this->category->update($this->form);
-            $this->dispatch('notify', 'Category updated successfully!', 'success');
+            flash()->success('Category updated successfully!');
         } else {
             Category::create($this->form);
-            $this->dispatch('notify', 'Category created successfully!', 'success');
+            flash()->success('Category created successfully!');
         }
 
         $this->showModal = false;
@@ -70,7 +70,7 @@ new class extends Component {
         $category = Category::find($this->categoryToDelete);
         if ($category) {
             $category->delete();
-            $this->dispatch('notify', 'Category deleted successfully!', 'success');
+            flash()->success('Category deleted successfully!');
         }
         $this->confirmingDelete = false;
         $this->categoryToDelete = null;

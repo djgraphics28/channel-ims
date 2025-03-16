@@ -14,22 +14,43 @@
             <flux:navlist variant="outline">
                 <flux:navlist.group :heading="__('Platform')" class="grid">
                     <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" >{{ __('Dashboard') }}</flux:navlist.item>
+                    @can('branches.view')
                     <flux:navlist.item icon="building-office-2"  :href="route('branches')"  badge="2">{{ __('Branches') }}</flux:navlist.item>
+                    @endcan
+                    @can('cashflow.view')
                     <flux:navlist.item icon="banknotes"  badge="2">{{ __('Cash Flow') }}</flux:navlist.item>
-                    <flux:navlist.item icon="document-text" badge="2" :href="route('quotations')" :current="request()->routeIs(['pos', 'quotations'])">{{ __('Quotation') }}</flux:navlist.item>                    <flux:navlist.group expandable heading="Products Management" class="hidden lg:grid">
+                    @endcan
+                    @can('quotations.view')
+                        <flux:navlist.item icon="document-text" badge="2" :href="route('quotations')" :current="request()->routeIs(['pos', 'quotations'])">{{ __('Quotation') }}</flux:navlist.item>
+                    @endcan
+                    @can('products.view')
+                    <flux:navlist.group expandable heading="Products Management" class="hidden lg:grid">
                         <flux:navlist.item badge="12,000" icon="cube" :href="route('products')" >{{ __('Products') }}</flux:navlist.item>
+                        @can('categories.view')
                         <flux:navlist.item badge="50" icon="tag" :href="route('categories')"  >{{ __('Categories') }}</flux:navlist.item>
+                        @endcan
+                        @can('units.view')
                         <flux:navlist.item badge="35" icon="scale" :href="route('units')"  >{{ __('Units') }}</flux:navlist.item>
+                        @endcan
                     </flux:navlist.group>
+                    @endcan
+                    @can('customers.view')
                     <flux:navlist.item icon="users" :href="route('customers')"  >{{ __('Customers') }}</flux:navlist.item>
+                    @endcan
+                    @can('users.view')
                     <flux:navlist.group expandable heading="User Management" class="hidden lg:grid">
-                        <flux:navlist.item  icon="user" href="#">Users</flux:navlist.item>
-                        <flux:navlist.item  icon="shield-check" href="#">Roles</flux:navlist.item>
+                        <flux:navlist.item  icon="user" :href="route('users')" >Users</flux:navlist.item>
+                        @can('roles.view')
+                        <flux:navlist.item  icon="shield-check" :href="route('roles')">Roles</flux:navlist.item>
+                        @endcan
                     </flux:navlist.group>
+                    @endcan
+                    @can('reports.view')
                     <flux:navlist.group expandable heading="Reports" class="hidden lg:grid">
                         <flux:navlist.item  icon="chart-bar" href="#">Sales Report</flux:navlist.item>
                         <flux:navlist.item  icon="document" href="#">Expenses Report</flux:navlist.item>
                     </flux:navlist.group>
+                    @endcan
                 </flux:navlist.group>
             </flux:navlist>
 
@@ -76,7 +97,9 @@
                     <flux:menu.separator />
 
                     <flux:menu.radio.group>
+                        @can('settings.view')
                         <flux:menu.item href="/settings/profile" icon="cog" >{{ __('Account Settings') }}</flux:menu.item>
+                        @endcan
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />
