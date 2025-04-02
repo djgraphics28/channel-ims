@@ -200,7 +200,7 @@ new class extends Component {
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
                                     {{ strtoupper($quotation->customer->name ?? '') }}</td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    Php{{ number_format($quotation->total_amount, 2) }}</td>
+                                    ₱{{ number_format($quotation->total_amount, 2) }}</td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                     {{ strtoupper($quotation->payment->payment_method ?? '') }}</td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
@@ -209,8 +209,8 @@ new class extends Component {
                                     {{ strtoupper($quotation->payment->payment_status ?? '') }}</td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                     {{ $quotation->order_items_count ?? '' }}</td>
-                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                        {{ $quotation->created_at ?? '' }}</td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                    {{ $quotation->created_at ?? '' }}</td>
                                 {{-- <td class="whitespace-nowrap px-6 py-4">
                                     <span
                                         class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
