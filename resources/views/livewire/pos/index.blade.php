@@ -183,6 +183,9 @@ new class extends Component {
                             <th
                                 class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Order Items</th>
+                            <th
+                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Created At</th>
 
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -206,6 +209,8 @@ new class extends Component {
                                     {{ strtoupper($quotation->payment->payment_status ?? '') }}</td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                     {{ $quotation->order_items_count ?? '' }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                        {{ $quotation->created_at ?? '' }}</td>
                                 {{-- <td class="whitespace-nowrap px-6 py-4">
                                     <span
                                         class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
