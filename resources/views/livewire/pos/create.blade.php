@@ -90,7 +90,6 @@ new class extends Component {
 
     public function addToCart($productId)
     {
-        Flux::toast('Your changes have been saved.');
         $product = Product::find($productId);
 
         if (!$product || $product->stock < 1) {

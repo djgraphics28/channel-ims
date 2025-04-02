@@ -321,13 +321,14 @@ new class extends Component {
             @else
                 <div class="grid grid-cols-4 gap-4">
                     @foreach ($products as $product)
-                        <div class="rounded-lg border p-4 shadow-sm cursor-pointer dark:border-gray-700 dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-                            wire:click="addToCart({{ $product->id }})" x-data
+                        <div class="rounded-lg border p-4 shadow-sm cursor-pointer dark:border-gray-700 dark:bg-gray-800"
+                            wire:click="addToCart({{ $product->id }}); $dispatch('play-sound', {sound: 'https://s3.amazonaws.com/freecodecamp/drums/Heater-4_1.mp3'})"
+                            x-data
                             @play-sound.window="
-                                const audio = new Audio($event.detail.sound);
-                                audio.volume = 0.1;
-                                audio.play();
-                            ">
+    const audio = new Audio($event.detail.sound);
+    audio.volume = 0.1;
+    audio.play();
+">
                             <div class="flex justify-between">
                                 <span
                                     class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-2.5 py-0.5 text-sm font-medium text-blue-800 dark:text-blue-100">
