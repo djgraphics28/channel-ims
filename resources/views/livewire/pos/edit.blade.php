@@ -458,7 +458,7 @@ new class extends Component {
                                         class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 text-sm dark:text-gray-300">
                                         <option value="">Select</option>
                                         <option value="cash">CASH</option>
-                                        <option value="card">COD</option>
+                                        <option value="cod">COD</option>
                                         <option value="sign">SIGN</option>
                                         <option value="returned">RETURNED</option>
                                         <option value="refund">REFUND</option>
