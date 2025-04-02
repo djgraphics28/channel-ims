@@ -11,10 +11,10 @@ new class extends Component {
 
     public $search = '';
     public $showModal = false;
-    public $CashFlow;
+    public $cashflow;
     public $isEditing = false;
     public $confirmingDelete = false;
-    public $CashFlowToDelete;
+    public $cashflowToDelete;
     #[Url]
     public $isActiveTab = 'in';
 
@@ -45,13 +45,13 @@ new class extends Component {
         $this->showModal = true;
     }
 
-    public function edit(CashFlow $CashFlow)
+    public function edit(CashFlow $cashflow)
     {
-        $this->CashFlow = $CashFlow;
+        $this->cashflow = $cashflow;
         $this->isEditing = true;
-        $this->description = $CashFlow->description;
-        $this->amount = $CashFlow->amount;
-        $this->remarks = $CashFlow->remarks;
+        $this->description = $cashflow->description;
+        $this->amount = $cashflow->amount;
+        $this->remarks = $cashflow->remarks;
         $this->showModal = true;
     }
 
@@ -68,45 +68,46 @@ new class extends Component {
         ];
 
         if ($this->isEditing) {
-            $this->CashFlow->update($data);
-            session()->flash('success', 'CashFlow updated successfully!');
+            $this->cashflow->update($data);
+
+            flash()->success('CashFlow updated successfully!');
         } else {
             CashFlow::create($data);
-            session()->flash('success', 'CashFlow created successfully!');
+            flash()->success('CashFlow created successfully!');
         }
 
         $this->showModal = false;
         $this->resetForm();
     }
 
-    public function confirmDelete($CashFlowId)
+    public function confirmDelete($cashflowId)
     {
-        $this->CashFlowToDelete = $CashFlowId;
+        $this->cashflowToDelete = $cashflowId;
         $this->confirmingDelete = true;
     }
 
     public function delete()
     {
-        $CashFlow = CashFlow::find($this->CashFlowToDelete);
-        if ($CashFlow) {
-            $CashFlow->delete();
-            session()->flash('success', 'CashFlow deleted successfully!');
+        $cashflow = CashFlow::find($this->cashflowToDelete);
+        if ($cashflow) {
+            $cashflow->delete();
+            flash()->success('CashFlow deleted successfully!');
         }
         $this->confirmingDelete = false;
-        $this->CashFlowToDelete = null;
+        $this->cashflowToDelete = null;
     }
 
     private function resetForm()
     {
         $this->reset(['description', 'amount', 'remarks']);
-        $this->CashFlow = null;
+        $this->cashflow = null;
     }
 
     #[Title('CashFlow')]
     public function with(): array
     {
         return [
-            'CashFlows' => CashFlow::query()
+            'cashflows' => CashFlow::query()
                 ->where('type', $this->isActiveTab)
                 ->where('description', 'like', '%' . $this->search . '%')
                 ->paginate(10),
@@ -167,10 +168,10 @@ new class extends Component {
             </div>
         </div>
 
-        @if ($CashFlows->isEmpty())
+        @if ($cashflows->isEmpty())
             <div class="flex flex-col items-center justify-center p-8">
                 <p class="mb-4 text-gray-500 dark:text-gray-400">No CashFlows found</p>
-                @can('CashFlow.create')
+                @can('cashflow.create')
                     <button wire:click="create"
                         class="inline-flex items-center justify-center rounded-lg bg-green-600 px-6 py-3 text-sm font-medium text-white transition-all duration-200 ease-in-out hover:bg-green-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 active:bg-green-800 dark:bg-green-500 dark:hover:bg-green-600 dark:focus:ring-green-400">
                         <svg xmlns="http://www.w3.org/2000/svg" class="my-auto mr-2 h-5 w-5" viewBox="0 0 20 20"
@@ -185,7 +186,7 @@ new class extends Component {
             </div>
         @else
             <div class="flex justify-end">
-                @can('CashFlow.create')
+                @can('cashflow.create')
                     <button wire:click="create"
                         class="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 dark:bg-green-500 dark:hover:bg-green-600">
                         Add CashFlow
@@ -220,16 +221,16 @@ new class extends Component {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-                        @foreach ($CashFlows as $CashFlow)
+                        @foreach ($cashflows as $cashflow)
                             <tr class="dark:hover:bg-gray-800">
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ $CashFlow->description }}
+                                    {{ $cashflow->description }}
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ number_format($CashFlow->amount, 2) }}
+                                    {{ number_format($cashflow->amount, 2) }}
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4">
-                                    @if ($CashFlow->type === 'in')
+                                    @if ($cashflow->type === 'in')
                                         <span
                                             class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
                                             Money In
@@ -242,17 +243,17 @@ new class extends Component {
                                     @endif
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ $CashFlow->creator->name }}
+                                    {{ $cashflow->creator->name }}
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 space-x-2">
-                                    @can('CashFlow.edit')
-                                        <button wire:click="edit({{ $CashFlow->id }})"
+                                    @can('cashflow.edit')
+                                        <button wire:click="edit({{ $cashflow->id }})"
                                             class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
                                             Edit
                                         </button>
                                     @endcan
-                                    @can('CashFlow.delete')
-                                        <button wire:click="confirmDelete({{ $CashFlow->id }})"
+                                    @can('cashflow.delete')
+                                        <button wire:click="confirmDelete({{ $cashflow->id }})"
                                             class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
                                             Delete
                                         </button>
@@ -264,7 +265,7 @@ new class extends Component {
                 </table>
             </div>
             <div class="mt-4">
-                {{ $CashFlows->links() }}
+                {{ $cashflows->links() }}
             </div>
         @endif
     </div>
