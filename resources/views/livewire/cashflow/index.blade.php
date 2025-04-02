@@ -2,7 +2,7 @@
 
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
-use App\Models\Cashflow;
+use App\Models\CashFlow;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 
@@ -11,10 +11,10 @@ new class extends Component {
 
     public $search = '';
     public $showModal = false;
-    public $cashflow;
+    public $CashFlow;
     public $isEditing = false;
     public $confirmingDelete = false;
-    public $cashflowToDelete;
+    public $CashFlowToDelete;
     #[Url]
     public $isActiveTab = 'in';
 
@@ -45,13 +45,13 @@ new class extends Component {
         $this->showModal = true;
     }
 
-    public function edit(Cashflow $cashflow)
+    public function edit(CashFlow $CashFlow)
     {
-        $this->cashflow = $cashflow;
+        $this->CashFlow = $CashFlow;
         $this->isEditing = true;
-        $this->description = $cashflow->description;
-        $this->amount = $cashflow->amount;
-        $this->remarks = $cashflow->remarks;
+        $this->description = $CashFlow->description;
+        $this->amount = $CashFlow->amount;
+        $this->remarks = $CashFlow->remarks;
         $this->showModal = true;
     }
 
@@ -68,45 +68,45 @@ new class extends Component {
         ];
 
         if ($this->isEditing) {
-            $this->cashflow->update($data);
-            session()->flash('success', 'Cashflow updated successfully!');
+            $this->CashFlow->update($data);
+            session()->flash('success', 'CashFlow updated successfully!');
         } else {
-            Cashflow::create($data);
-            session()->flash('success', 'Cashflow created successfully!');
+            CashFlow::create($data);
+            session()->flash('success', 'CashFlow created successfully!');
         }
 
         $this->showModal = false;
         $this->resetForm();
     }
 
-    public function confirmDelete($cashflowId)
+    public function confirmDelete($CashFlowId)
     {
-        $this->cashflowToDelete = $cashflowId;
+        $this->CashFlowToDelete = $CashFlowId;
         $this->confirmingDelete = true;
     }
 
     public function delete()
     {
-        $cashflow = Cashflow::find($this->cashflowToDelete);
-        if ($cashflow) {
-            $cashflow->delete();
-            session()->flash('success', 'Cashflow deleted successfully!');
+        $CashFlow = CashFlow::find($this->CashFlowToDelete);
+        if ($CashFlow) {
+            $CashFlow->delete();
+            session()->flash('success', 'CashFlow deleted successfully!');
         }
         $this->confirmingDelete = false;
-        $this->cashflowToDelete = null;
+        $this->CashFlowToDelete = null;
     }
 
     private function resetForm()
     {
         $this->reset(['description', 'amount', 'remarks']);
-        $this->cashflow = null;
+        $this->CashFlow = null;
     }
 
-    #[Title('Cashflow')]
+    #[Title('CashFlow')]
     public function with(): array
     {
         return [
-            'cashflows' => Cashflow::query()
+            'CashFlows' => CashFlow::query()
                 ->where('type', $this->isActiveTab)
                 ->where('description', 'like', '%' . $this->search . '%')
                 ->paginate(10),
@@ -133,7 +133,7 @@ new class extends Component {
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="m1 9 4-4-4-4" />
                         </svg>
-                        <span class="ml-1 text-sm font-medium text-gray-500 dark:text-gray-400 md:ml-2">Cashflow</span>
+                        <span class="ml-1 text-sm font-medium text-gray-500 dark:text-gray-400 md:ml-2">CashFlow</span>
                     </div>
                 </li>
             </ol>
@@ -162,15 +162,15 @@ new class extends Component {
         </div>
         <div class="flex items-center justify-between">
             <div class="w-1/3">
-                <input wire:model.live="search" type="search" placeholder="Search cashflows..."
+                <input wire:model.live="search" type="search" placeholder="Search CashFlows..."
                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
             </div>
         </div>
 
-        @if ($cashflows->isEmpty())
+        @if ($CashFlows->isEmpty())
             <div class="flex flex-col items-center justify-center p-8">
-                <p class="mb-4 text-gray-500 dark:text-gray-400">No cashflows found</p>
-                @can('cashflow.create')
+                <p class="mb-4 text-gray-500 dark:text-gray-400">No CashFlows found</p>
+                @can('CashFlow.create')
                     <button wire:click="create"
                         class="inline-flex items-center justify-center rounded-lg bg-green-600 px-6 py-3 text-sm font-medium text-white transition-all duration-200 ease-in-out hover:bg-green-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 active:bg-green-800 dark:bg-green-500 dark:hover:bg-green-600 dark:focus:ring-green-400">
                         <svg xmlns="http://www.w3.org/2000/svg" class="my-auto mr-2 h-5 w-5" viewBox="0 0 20 20"
@@ -179,16 +179,16 @@ new class extends Component {
                                 d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
                                 clip-rule="evenodd" />
                         </svg>
-                        Add Cashflow
+                        Add CashFlow
                     </button>
                 @endcan
             </div>
         @else
             <div class="flex justify-end">
-                @can('cashflow.create')
+                @can('CashFlow.create')
                     <button wire:click="create"
                         class="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 dark:bg-green-500 dark:hover:bg-green-600">
-                        Add Cashflow
+                        Add CashFlow
                     </button>
                 @endcan
             </div>
@@ -220,16 +220,16 @@ new class extends Component {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-                        @foreach ($cashflows as $cashflow)
+                        @foreach ($CashFlows as $CashFlow)
                             <tr class="dark:hover:bg-gray-800">
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ $cashflow->description }}
+                                    {{ $CashFlow->description }}
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ number_format($cashflow->amount, 2) }}
+                                    {{ number_format($CashFlow->amount, 2) }}
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4">
-                                    @if ($cashflow->type === 'in')
+                                    @if ($CashFlow->type === 'in')
                                         <span
                                             class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
                                             Money In
@@ -242,17 +242,17 @@ new class extends Component {
                                     @endif
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ $cashflow->creator->name }}
+                                    {{ $CashFlow->creator->name }}
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 space-x-2">
-                                    @can('cashflow.edit')
-                                        <button wire:click="edit({{ $cashflow->id }})"
+                                    @can('CashFlow.edit')
+                                        <button wire:click="edit({{ $CashFlow->id }})"
                                             class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
                                             Edit
                                         </button>
                                     @endcan
-                                    @can('cashflow.delete')
-                                        <button wire:click="confirmDelete({{ $cashflow->id }})"
+                                    @can('CashFlow.delete')
+                                        <button wire:click="confirmDelete({{ $CashFlow->id }})"
                                             class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
                                             Delete
                                         </button>
@@ -264,7 +264,7 @@ new class extends Component {
                 </table>
             </div>
             <div class="mt-4">
-                {{ $cashflows->links() }}
+                {{ $CashFlows->links() }}
             </div>
         @endif
     </div>
@@ -348,11 +348,11 @@ new class extends Component {
                         <div class="sm:flex sm:items-start">
                             <div class="mt-3 text-center sm:mt-0 sm:text-left">
                                 <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100">
-                                    Delete Cashflow
+                                    Delete CashFlow
                                 </h3>
                                 <div class="mt-2">
                                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        Are you sure you want to delete this cashflow? This action cannot be undone.
+                                        Are you sure you want to delete this CashFlow? This action cannot be undone.
                                     </p>
                                 </div>
                             </div>
