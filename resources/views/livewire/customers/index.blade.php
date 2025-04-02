@@ -64,9 +64,10 @@ new class extends Component {
 
         if ($this->isEditing) {
             $this->customer->update($this->form);
-            $this->dispatch('notify', 'Customer updated successfully!', 'success');
+            flash()->success('Customer updated successfully!');
         } else {
             Customer::create($this->form);
+            flash()->success('Customer created successfully!');
             $this->dispatch('notify', 'Customer created successfully!', 'success');
         }
 

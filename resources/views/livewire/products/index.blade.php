@@ -3,6 +3,8 @@
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 use App\Models\Product;
+use App\Models\Category;
+use App\Models\Unit;
 use Livewire\Attributes\Title;
 
 new class extends Component {
@@ -10,38 +12,43 @@ new class extends Component {
 
     public $search = '';
     public $showModal = false;
+    public $showAddStockModal = false;
     public $product;
     public $isEditing = false;
     public $confirmingDelete = false;
     public $productToDelete;
     public $pageRows = 10;
 
-    public $form = [
-        'category_id' => '',
-        'code' => '',
-        'name' => '',
-        'description' => '',
-        'unit_id' => '',
-        'stock' => 0,
-        'buying_price' => 0,
-        'selling_price' => 0,
-        'created_by' => '',
-        'updated_by' => '',
-    ];
+    public $category_id;
+    public $code;
+    public $name;
+    public $description;
+    public $unit_id;
+    public $stock;
+    public $buying_price;
+    public $selling_price;
+    public $created_by;
+    public $updated_by;
+    public $stock_quantity = '';
+    public $addStockProduct = '';
+    public $stockProductCurrentStock = 0;
+
+    public $selectedCategory = '';
+    public $selectedUnit = '';
 
     public function rules()
     {
         return [
-            'form.category_id' => 'nullable|string',
-            'form.code' => 'required|string|max:50',
-            'form.name' => 'required|string|max:255',
-            'form.description' => 'nullable|string',
-            'form.unit_id' => 'nullable|string',
-            'form.stock' => 'required|integer|min:0',
-            'form.buying_price' => 'required|numeric|min:0',
-            'form.selling_price' => 'required|numeric|min:0',
-            'form.created_by' => 'nullable|string',
-            'form.updated_by' => 'nullable|string',
+            'category_id' => 'required|string',
+            'code' => 'required|string|max:50',
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'unit_id' => 'required|string',
+            'stock' => 'required|integer|min:0',
+            'buying_price' => 'required|numeric|min:0',
+            'selling_price' => 'required|numeric|min:0',
+            'created_by' => 'nullable|string',
+            'updated_by' => 'nullable|string',
         ];
     }
 
@@ -55,20 +62,51 @@ new class extends Component {
     public function edit(Product $product)
     {
         $this->product = $product;
-        $this->form = $product->only(['category_id', 'code', 'name', 'description', 'unit_id', 'stock', 'buying_price', 'selling_price', 'created_by', 'updated_by']);
+        $this->category_id = $product->category_id;
+        $this->code = $product->code;
+        $this->name = $product->name;
+        $this->description = $product->description;
+        $this->unit_id = $product->unit_id;
+        $this->stock = $product->stock;
+        $this->buying_price = $product->buying_price;
+        $this->selling_price = $product->selling_price;
+        $this->created_by = $product->created_by;
+        $this->updated_by = $product->updated_by;
         $this->isEditing = true;
         $this->showModal = true;
     }
 
+    public function addStock($productId)
+    {
+        $this->stock_quantity = '';
+        $this->showAddStockModal = true;
+        $product = Product::find($productId);
+        $this->product = $product;
+        $this->addStockProduct = $product->name;
+        $this->stockProductCurrentStock = $product->stock;
+    }
+
+    public function saveStock()
+    {
+        $this->product->increment('stock', $this->stock_quantity);
+        $this->product->stocks()->create([
+            'quantity' => $this->stock_quantity,
+        ]);
+
+        flash()->success('Product stocks added successfully!');
+
+        $this->showAddStockModal = false;
+    }
+
     public function save()
     {
-        $this->validate();
+        $validatedData = $this->validate();
 
         if ($this->isEditing) {
-            $this->product->update($this->form);
+            $this->product->update($validatedData);
             flash()->success('Product updated successfully!');
         } else {
-            Product::create($this->form);
+            Product::create($validatedData);
             flash()->success('Product created successfully!');
         }
 
@@ -106,32 +144,39 @@ new class extends Component {
 
     private function resetForm()
     {
-        $this->form = [
-            'category_id' => '',
-            'code' => '',
-            'name' => '',
-            'description' => '',
-            'unit_id' => '',
-            'stock' => 0,
-            'buying_price' => 0,
-            'selling_price' => 0,
-            'created_by' => '',
-            'updated_by' => '',
-        ];
+        $this->category_id = '';
+        $this->code = '';
+        $this->name = '';
+        $this->description = '';
+        $this->unit_id = '';
+        $this->stock = 0;
+        $this->buying_price = 0;
+        $this->selling_price = 0;
+        $this->created_by = '';
+        $this->updated_by = '';
         $this->product = null;
     }
 
     #[Title('Products')]
     public function with(): array
     {
+        $query = Product::query()->where('name', 'like', '%' . $this->search . '%');
+
+        if ($this->selectedCategory) {
+            $query->where('category_id', $this->selectedCategory);
+        }
+
+        if ($this->selectedUnit) {
+            $query->where('unit_id', $this->selectedUnit);
+        }
+
         return [
-            'products' => Product::query()
-                ->where('name', 'like', '%' . $this->search . '%')
-                ->paginate($this->pageRows),
+            'products' => $query->paginate($this->pageRows),
+            'categories' => Category::all(),
+            'units' => Unit::all(),
         ];
     }
 }; ?>
-
 
 <div>
     <div class="mb-4">
@@ -164,6 +209,20 @@ new class extends Component {
                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
             </div>
             <div class="flex items-center space-x-2">
+                <select wire:model.live="selectedCategory"
+                    class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                    <option value="">All Categories</option>
+                    @foreach ($categories as $category)
+                        <option value="{{ $category->id }}">{{ $category->name }}</option>
+                    @endforeach
+                </select>
+                <select wire:model.live="selectedUnit"
+                    class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                    <option value="">All Units</option>
+                    @foreach ($units as $unit)
+                        <option value="{{ $unit->id }}">{{ $unit->name }}</option>
+                    @endforeach
+                </select>
                 <select wire:model.live="pageRows"
                     class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
                     <option value="10">10 per page</option>
@@ -207,6 +266,12 @@ new class extends Component {
                                     class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                     Name</th>
                                 <th
+                                    class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Category</th>
+                                <th
+                                    class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Unit</th>
+                                <th
                                     class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                     Stock</th>
                                 <th
@@ -241,6 +306,12 @@ new class extends Component {
                                     </td>
                                     <td
                                         class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                        {{ $product->category->name ?? 'not yet set' }}</td>
+                                    <td
+                                        class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                        {{ $product->unit->name  ?? 'not yet set' }}</td>
+                                    <td
+                                        class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
                                         {{ $product->stock }}</td>
                                     <td
                                         class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
@@ -252,9 +323,12 @@ new class extends Component {
                                     </td>
                                     <td class="px-4 sm:px-6 py-2 sm:py-4 space-x-2 text-sm">
                                         <button wire:click="edit({{ $product->id }})"
-                                            class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">Edit</button>
+                                            class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">Edit</button>
                                         <button wire:click="confirmDelete({{ $product->id }})"
-                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Delete</button>
+                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">Delete</button>
+                                        <button wire:click="addStock({{ $product->id }})"
+                                            class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 cursor-pointer">Add
+                                            Stock</button>
                                     </td>
                                 </tr>
                             @endforeach
@@ -269,6 +343,43 @@ new class extends Component {
         @endif
     </div>
 
+    @if ($showAddStockModal)
+        <div class="fixed inset-0 z-10 overflow-y-auto">
+            <div class="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                    <div class="absolute inset-0 bg-gray-500 dark:bg-gray-800 opacity-75"></div>
+                </div>
+                <div
+                    class="inline-block transform overflow-hidden rounded-lg bg-white dark:bg-gray-900 text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
+                    <form wire:submit="saveStock">
+                        <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <div class="mb-4">
+                                <label
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Additional
+                                    Stock for {{ $addStockProduct }} | Current Stock:
+                                    {{ $stockProductCurrentStock }}</label>
+                                <input wire:model="stock_quantity" type="number" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                @error('stock_quantity')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-800 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                            <button type="submit"
+                                class="inline-flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-400 sm:ml-3 sm:w-auto sm:text-sm">
+                                Add Stock
+                            </button>
+                            <button type="button" wire:click="$set('showAddStockModal', false)"
+                                class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-base font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-offset-2 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
     @if ($showModal)
         <div class="fixed inset-0 z-10 overflow-y-auto">
             <div class="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -280,60 +391,84 @@ new class extends Component {
                     <form wire:submit="save">
                         <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="mb-4">
-                                <flux:input wire:model="form.category_id" :label="__('Category')" type="text"
-                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.category_id')
+                                <label
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                                <select wire:model="category_id"
+                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                    <option value="">Select Category</option>
+                                    @foreach ($categories as $category)
+                                        <option value="{{ $category->id }}">{{ $category->name }}</option>
+                                    @endforeach
+                                </select>
+                                @error('category_id')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <flux:input wire:model="form.code" :label="__('Code')" type="text" required
-                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.code')
+                                <label
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code</label>
+                                <input wire:model="code" type="text"
+                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                @error('code')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <flux:input wire:model="form.name" :label="__('Name')" type="text" required
-                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.name')
+                                <label
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                                <input wire:model="name" type="text"
+                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                @error('name')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <flux:input wire:model="form.description" :label="__('Description')" type="text"
-                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.description')
+                                <label
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                                <textarea wire:model="description"
+                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100"></textarea>
+                                @error('description')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <flux:input wire:model="form.unit_id" :label="__('Unit')" type="text"
-                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.unit_id')
+                                <label
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit</label>
+                                <select wire:model="unit_id"
+                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                    <option value="">Select Unit</option>
+                                    @foreach ($units as $unit)
+                                        <option value="{{ $unit->id }}">{{ $unit->name }}</option>
+                                    @endforeach
+                                </select>
+                                @error('unit_id')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <flux:input wire:model="form.stock" :label="__('Stock')" type="number" required
-                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.stock')
+                                <label
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock</label>
+                                <input wire:model="stock" type="number" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                @error('stock')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <flux:input wire:model="form.buying_price" :label="__('Buying Price')" type="number"
-                                    step="0.01" required
-                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.buying_price')
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buying
+                                    Price</label>
+                                <input wire:model="buying_price" type="number" step="0.01" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                @error('buying_price')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <flux:input wire:model="form.selling_price" :label="__('Selling Price')"
-                                    type="number" step="0.01" required
-                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.selling_price')
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Selling
+                                    Price</label>
+                                <input wire:model="selling_price" type="number" step="0.01" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                @error('selling_price')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
@@ -353,17 +488,6 @@ new class extends Component {
             </div>
         </div>
     @endif
-
-    <div x-data="{ show: false, message: '', type: '' }" x-show="show" x-transition x-init="Livewire.on('notify', (msg, type) => {
-        message = msg;
-        type = type;
-        show = true;
-        setTimeout(() => show = false, 3000);
-    })"
-        class="fixed top-5 right-5 px-4 py-2 rounded-lg shadow-md text-white"
-        :class="type === 'success' ? 'bg-green-500' : 'bg-red-500'">
-        <span x-text="message"></span>
-    </div>
 
     @if ($confirmingDelete)
         <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -401,4 +525,15 @@ new class extends Component {
             </div>
         </div>
     @endif
+
+    <div x-data="{ show: false, message: '', type: '' }" x-show="show" x-transition x-init="Livewire.on('notify', (msg, type) => {
+        message = msg;
+        type = type;
+        show = true;
+        setTimeout(() => show = false, 3000);
+    })"
+        class="fixed top-5 right-5 px-4 py-2 rounded-lg shadow-md text-white"
+        :class="type === 'success' ? 'bg-green-500' : 'bg-red-500'">
+        <span x-text="message"></span>
+    </div>
 </div>

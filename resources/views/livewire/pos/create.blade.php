@@ -1,566 +1,534 @@
 <?php
 
 use Livewire\Volt\Component;
-use Livewire\WithPagination;
-use App\Models\Product;
-use App\Models\Category;
-use App\Models\User;
-use App\Models\Order;
-// use App\Models\OrderItem;
-// use App\Models\Payment;
-use App\Models\Customer;
 use Livewire\Attributes\Title;
-use Livewire\Attributes\Required;
+use App\Models\Product;
+use App\Models\Customer;
+use App\Models\Payment;
+use App\Models\CashFlow;
+use Carbon\Carbon;
 
 new class extends Component {
-    use WithPagination;
+    public $salesData = [];
+    public $bestSellersData = [];
+    public $bestSellersLabels = [];
+    public $bestSellersRevenue = [];
 
-    public $search = '';
-    public $showModal = false;
-    public $product;
-    public $isEditing = false;
-    public $confirmingDelete = false;
-    public $productToDelete;
-    public $cart = [];
-    public $total = 0;
-    public $customerSearch = '';
-    public $customerSelected = null; // Changed to customerSelected
-    public $filteredCustomers = [];
-
-    public $tax = 0;
-    public $discount = 0;
-    #[Required]
-    public $paymentMethod;
-    #[Required]
-    public $paymentScheme;
-    public $paymentStatus;
-    public $server;
-    public $notes;
-    public $receiptNumber;
-
-    public $receiptModal = false;
-
-    public $form = [
-        'name' => '',
-        'unit' => '',
-        'discount' => 0,
-        'price' => '',
-        'quantity' => '',
-    ];
-
-    public function rules()
+    #[Title('Dashboard')]
+    public function with()
     {
-        return [
-            'form.name' => 'required|string|max:255',
-            'form.price' => 'required|numeric|min:0',
-            'form.quantity' => 'required|integer|min:0',
-        ];
-    }
+        // Get today's date
+        $today = today();
 
-    public function updatedCustomerSearch()
-    {
-        $this->filteredCustomers = $this->searchCustomer($this->customerSearch);
-    }
+        // Get sales data for the current week
+        $startOfWeek = $today->copy()->startOfWeek();
+        $endOfWeek = $today->copy()->endOfWeek();
 
-    public function selectCustomer($customerId)
-    {
-        $this->customerSelected = $customerId; // Changed to customerSelected
-        $this->customerSearch = '';
-        $this->filteredCustomers = [];
-    }
+        $weeklySales = [];
+        $weeklyLabels = [];
 
-    public function searchCustomer($query)
-    {
-        if (empty($query)) {
-            return Customer::all();
+        for ($date = $startOfWeek; $date <= $endOfWeek; $date->addDay()) {
+            $daySales = Payment::whereDate('created_at', $date)
+                ->where('payment_status', 'paid')
+                ->sum('amount_paid');
+
+            $weeklySales[] = $daySales;
+            $weeklyLabels[] = $date->format('l, F j');
         }
 
-        return Customer::where('name', 'like', '%' . $query . '%')
-            ->orWhere('email', 'like', '%' . $query . '%')
-            ->orWhere('phone', 'like', '%' . $query . '%')
-            ->get();
-    }
+        $this->salesData = $weeklySales;
 
-    public function addToCart($productId)
-    {
-        $product = Product::find($productId);
-
-        if (!$product || $product->stock < 1) {
-            $this->dispatch('notify', 'Product out of stock!', 'error');
-            return;
-        }
-
-        if (isset($this->cart[$productId])) {
-            if ($this->cart[$productId]['quantity'] >= $product->stock) {
-                $this->dispatch('notify', 'Maximum stock reached!', 'error');
-                return;
+        // Get best sellers data (top 5 products with revenue)
+        $bestSellers = Product::withCount([
+            'orderItems as total_sold' => function ($query) {
+                $query->whereHas('order', function ($q) {
+                    $q->where('status', 'completed');
+                });
             }
-            $this->cart[$productId]['quantity']++;
-        } else {
-            $this->cart[$productId] = [
-                'name' => $product->name,
-                'unit' => $product->unit_id,
-                'price' => $product->selling_price,
-                'quantity' => 1,
-            ];
-        }
+        ])
+        ->withSum([
+            'orderItems as total_revenue' => function ($query) {
+                $query->select(DB::raw('SUM(quantity * price)'))
+                    ->whereHas('order', function ($q) {
+                        $q->where('status', 'completed');
+                    });
+            }
+        ])
+        ->orderByDesc('total_sold')
+        ->take(5)
+        ->get();
 
-        $this->calculateTotal();
-        $this->dispatch('notify', 'Product added to cart!', 'success');
-    }
+        $this->bestSellersData = $bestSellers->pluck('total_sold')->toArray();
+        $this->bestSellersLabels = $bestSellers->pluck('name')->toArray();
+        $this->bestSellersRevenue = $bestSellers->pluck('total_revenue')->toArray();
 
-    public function removeFromCart($productId)
-    {
-        unset($this->cart[$productId]);
-        $this->calculateTotal();
-        $this->dispatch('notify', 'Product removed from cart!', 'success');
-    }
+        $dailySales = Payment::whereDate('created_at', today())
+            ->where('payment_status', 'paid')
+            ->sum('amount_paid');
 
-    public function updateQuantity($productId, $change)
-    {
-        $product = Product::find($productId);
+        $totalCash = Payment::where('payment_method', 'cash')
+            ->where('payment_status', 'paid')
+            ->whereDate('created_at', today())
+            ->sum('amount_paid');
 
-        if ($change > 0 && $this->cart[$productId]['quantity'] >= $product->stock) {
-            $this->dispatch('notify', 'Maximum stock reached!', 'error');
-            return;
-        }
+        $totalCod = Payment::where('payment_method', 'cod')
+            ->where('payment_status', 'paid')
+            ->whereDate('created_at', today())
+            ->sum('amount_paid');
 
-        $this->cart[$productId]['quantity'] += $change;
+        $totalSign = Payment::where('payment_method', 'sign')
+            ->where('payment_status', 'paid')
+            ->whereDate('created_at', today())
+            ->sum('amount_paid');
 
-        if ($this->cart[$productId]['quantity'] <= 0) {
-            unset($this->cart[$productId]);
-        }
+        // Return and refund
+        $totalReturn = Payment::where('payment_method', 'return')
+            ->where('payment_status', 'paid')
+            ->whereDate('created_at', today())
+            ->sum('amount_paid');
 
-        $this->calculateTotal();
-    }
+        $totalRefund = Payment::where('payment_method', 'refund')
+            ->where('payment_status', 'paid')
+            ->whereDate('created_at', today())
+            ->sum('amount_paid');
 
-    public function calculateTotal()
-    {
-        $this->total = 0;
-        foreach ($this->cart as $item) {
-            $this->total += $item['price'] * $item['quantity'];
-        }
-    }
+        // Daily sales minus the return and refund
+        $dailySales = $dailySales - ($totalReturn + $totalRefund);
 
-    public function checkout()
-    {
-        if (empty($this->cart)) {
-            $this->dispatch('notify', 'Cart is empty!', 'error');
-            return;
-        }
+        // Cashflows
+        $totalMoneyIn = CashFlow::whereDate('created_at', today())
+            ->where('type', 'in')
+            ->sum('amount');
 
-        if (empty($this->paymentMethod)) {
-            $this->dispatch('notify', 'Payment Method empty!', 'error');
-            return;
-        }
+        $totalMoneyOut = CashFlow::whereDate('created_at', today())
+            ->where('type', 'out')
+            ->sum('amount');
 
-        if (empty($this->paymentScheme)) {
-            $this->dispatch('notify', 'Payment Scheme empty!', 'error');
-            return;
-        }
+        $cashOnHand = $totalMoneyIn - $totalMoneyOut;
 
-        $this->receiptModal = true;
-
-        // $this->cart = [];
-        // $this->total = 0;
-        // $this->customerSelected = null;
-        // $this->tax = 0;
-        // $this->discount = 0;
-        // $this->paymentMethod = null;
-        // $this->paymentScheme = null;
-        $this->dispatch('notify', 'Transaction completed successfully!', 'success');
-    }
-
-    public function confirmAndPrint()
-    {
-        $qt = Order::updateOrCreate(
-            ['order_number' => $this->receiptNumber],
-            [
-                'customer_id' => $this->customerSelected,
-                'created_by' => Auth::user()->id,
-                'assisted_by' => $this->server,
-                'total_amount' => $this->total,
-                'tax' => $this->tax,
-                'discount' => $this->discount,
-                'notes' => $this->notes,
-            ],
-        );
-
-        $qt->payment()->updateOrCreate(
-            ['order_id' => $qt->id],
-            [
-                'amount_paid' => $this->total + $this->total * ($this->tax / 100) - $this->total * ($this->discount / 100),
-                'payment_method' => $this->paymentMethod,
-                'payment_scheme' => $this->paymentScheme,
-                'payment_status' => $this->paymentStatus,
-                'notes' => $this->notes,
-            ],
-        );
-
-        foreach ($this->cart as $productId => $item) {
-            $product = Product::find($productId);
-            $product->decrement('stock', $item['quantity']);
-
-            $qt->order_items()->updateOrCreate(
-                [
-                    'product_id' => $productId,
-                    'order_id' => $qt->id,
-                ],
-                [
-                    'quantity' => $item['quantity'],
-                    'price' => $item['price'],
-                    'subtotal' => $item['quantity'] * $item['price'],
-                ],
-            );
-        }
-
-        // Trigger the print function in the browser
-        $this->dispatch('print-receipt');
-        $this->receiptModal = false;
-        $this->cart = [];
-    }
-    #[Title('Create Quotation')]
-    public function with(): array
-    {
         return [
-            'users' => User::all(),
-            'customers' => Customer::all(),
-            'categories' => Category::all(),
-            'products' => Product::query()
-                ->where('name', 'like', '%' . $this->search . '%')
-                ->paginate(12),
+            'totalProducts' => Product::count(),
+            'totalCustomers' => Customer::count(),
+            'dailySales' => $dailySales,
+            'totalCash' => $totalCash,
+            'totalCod' => $totalCod,
+            'totalSign' => $totalSign,
+            'totalReturn' => $totalReturn,
+            'totalRefund' => $totalRefund,
+            'totalMoneyIn' => $totalMoneyIn,
+            'totalMoneyOut' => $totalMoneyOut,
+            'cashOnHand' => $cashOnHand,
         ];
     }
 
-    public function orderNumber()
+    public function getMonthlySalesData()
     {
-        $prefix = 'QT';
-        $date = now()->format('Ymd');
-        $lastOrder = \DB::table('orders')->latest('id')->first();
-        $sequence = $lastOrder ? str_pad(intval(substr($lastOrder->order_number, -4)) + 1, 4, '0', STR_PAD_LEFT) : '0001';
-
-        return $prefix . $date . $sequence;
+        $monthlySales = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $monthlySales[] = Payment::whereMonth('created_at', $i)
+                ->whereYear('created_at', now()->year)
+                ->where('payment_status', 'paid')
+                ->sum('amount_paid');
+        }
+        return $monthlySales;
     }
-};
 
-?>
+    public function getYearlySalesData()
+    {
+        $yearlySales = [];
+        for ($i = 4; $i >= 0; $i--) {
+            $year = now()->year - $i;
+            $yearlySales[] = Payment::whereYear('created_at', $year)
+                ->where('payment_status', 'paid')
+                ->sum('amount_paid');
+        }
+        return $yearlySales;
+    }
+}; ?>
 
-<div>
-    <div class="flex h-full w-full gap-4">
-        <!-- Products Grid -->
-        <div class="w-2/3">
-            <div class="mb-4 flex gap-4">
-                <input wire:model.live="search" type="search" placeholder="Search products..."
-                    class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm dark:text-gray-300 dark:placeholder-gray-500">
-                <select wire:model.live="category"
-                    class="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm dark:text-gray-300">
-                    <option value="">All Categories</option>
-                    @foreach ($categories as $category)
-                        <option value="{{ $category->id }}">{{ $category->name }}</option>
-                    @endforeach
-                </select>
+<div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
+    <!-- Dashboard Stats -->
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-4">
+        <!-- Daily Sales Card -->
+        <div class="p-6 bg-white shadow-lg rounded-xl text-gray-900 dark:bg-gray-800 dark:text-white">
+            <div class="flex items-center gap-4">
+                <svg class="w-8 h-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                    stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+                </svg>
+                <div>
+                    <h3 class="text-xl font-bold text-green-500">Daily Sales</h3>
+                    <p class="text-4xl font-semibold text-green-500">Php {{ number_format($dailySales, 2) }}</p>
+                </div>
             </div>
-            <div class="grid grid-cols-4 gap-4">
-                @foreach ($products as $product)
-                    <div class="rounded-lg border p-4 shadow-sm cursor-pointer dark:border-gray-700 dark:bg-gray-800"
-                        wire:click="addToCart({{ $product->id }}); $dispatch('play-sound', {sound: 'https://s3.amazonaws.com/freecodecamp/drums/Heater-4_1.mp3'})"
-                        x-data
-                        @play-sound.window="
-        const audio = new Audio($event.detail.sound);
-        audio.volume = 0.1;
-        audio.play();
-    ">
-
-                        <div class="flex justify-between">
-                            <span
-                                class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-2.5 py-0.5 text-sm font-medium text-blue-800 dark:text-blue-100">₱{{ number_format($product->selling_price, 2) }}</span>
-                            <span
-                                class="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-2.5 py-0.5 text-sm font-medium text-gray-800 dark:text-gray-100">Stock:
-                                {{ $product->stock }}</span>
-                        </div>
-                        <div
-                            class="mt-1 w-full h-40 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                            <span class="text-gray-500 dark:text-gray-400">Product Image</span>
-                        </div>
-                        <h3 class="text-lg font-semibold dark:text-white">{{ $product->name }}</h3>
-                        <span class="dark:text-gray-300">{{ $product->code }}</span>
-                    </div>
-                @endforeach
-            </div>
-
-            <div class="mt-4">
-                {{ $products->links() }}
+            <div class="mt-4 space-y-2 text-gray-700 dark:text-gray-300">
+                <div class="flex justify-between">
+                    <span>Cash:</span>
+                    <span class="font-semibold">Php {{ number_format($totalCash, 2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>COD:</span>
+                    <span class="font-semibold">Php {{ number_format($totalCod, 2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Sign:</span>
+                    <span class="font-semibold">Php {{ number_format($totalSign, 2) }}</span>
+                </div>
+                <div class="flex justify-between text-red-500">
+                    <span>Return:</span>
+                    <span class="font-semibold">Php -{{ number_format($totalReturn, 2) }}</span>
+                </div>
+                <div class="flex justify-between text-red-500">
+                    <span>Refund:</span>
+                    <span class="font-semibold">Php -{{ number_format($totalRefund, 2) }}</span>
+                </div>
             </div>
         </div>
 
-        <!-- Cart -->
-        <div class="w-1/3">
-            <div class="rounded-lg border p-4 shadow-sm">
-                <div class="flex items-center gap-2">
-                    <span class="font-medium">Cashier:</span>
-                    <span>{{ auth()->user()->name }}</span>
+        <!-- Cashflow Section -->
+        <div class="p-6 bg-white shadow-lg rounded-xl text-gray-900 dark:bg-gray-800 dark:text-white">
+            <h3 class="text-xl font-bold text-blue-500">Cash Flow</h3>
+            <div class="mt-4 space-y-2 text-gray-700 dark:text-gray-300">
+                <div class="flex justify-between">
+                    <span>Money In:</span>
+                    <span class="font-semibold text-green-500">Php {{ number_format($totalMoneyIn, 2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Money Out:</span>
+                    <span class="font-semibold text-red-500">Php -{{ number_format($totalMoneyOut, 2) }}</span>
+                </div>
+                <div class="flex justify-between border-t pt-2">
+                    <span class="font-bold">COH:</span>
+                    <span class="font-bold text-blue-500">Php {{ number_format($cashOnHand, 2) }}</span>
                 </div>
             </div>
-            <div class="rounded-lg border p-4 shadow-sm mt-2">
-                {{-- <h2 class="mb-4 text-xl font-bold">Cart</h2> --}}
+        </div>
 
-                @if (empty($cart))
-                    <p class="text-gray-500">Cart is empty</p>
-                @else
-                    <div class="space-y-4">
-                        <div class="relative">
-                            <div class="mb-4">
-                                <label for="receipt_number" class="text-sm font-medium dark:text-gray-300">Receipt
-                                    Number:</label>
-                                <input placeholder="Enter Receipt Number here" type="text"
-                                    wire:model.live="receiptNumber"
-                                    class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm dark:text-gray-300">
-                            </div>
-                            <input type="text" wire:model.live="customerSearch" placeholder="Search customer..."
-                                class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm dark:text-gray-300 dark:placeholder-gray-500 mb-4">
-                            <!-- Remove value attribute since wire:model handles the binding -->
-                            @if ($filteredCustomers && count($filteredCustomers) > 0)
-                                <div
-                                    class="absolute z-10 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg mt-1">
-                                    @foreach ($filteredCustomers as $customer)
-                                        <div wire:click="selectCustomer({{ $customer->id }})"
-                                            class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-gray-300">
-                                            {{ $customer->name }}
-                                        </div>
-                                    @endforeach
-                                </div>
-                            @endif
-                            <p><strong>Customer: {{ Customer::find($customerSelected)->name ?? 'Walk-In' }}</strong>
-                            </p>
-                        </div>
-                        <table class="w-full">
-                            <thead>
-                                <tr class="border-b dark:border-gray-700">
-                                    <th class="text-left py-2 dark:text-gray-300">Item</th>
-                                    <th class="text-right py-2 dark:text-gray-300">Price</th>
-                                    <th class="text-right py-2 dark:text-gray-300">Quantity</th>
-                                    <th class="text-right py-2 dark:text-gray-300">Subtotal</th>
-                                    <th class="text-right py-2 dark:text-gray-300">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($cart as $productId => $item)
-                                    <tr class="border-b dark:border-gray-700">
-                                        <td class="py-2">
-                                            <h4 class="font-medium dark:text-gray-300">{{ $item['name'] }}</h4>
-                                        </td>
-                                        <td class="text-right py-2">
-                                            <p class="text-sm text-gray-600 dark:text-gray-400">
-                                                ₱{{ number_format($item['price'], 2) }}
-                                            </p>
-                                        </td>
-                                        <td class="text-right py-2">
-                                            <div class="flex items-center justify-end gap-2">
-                                                <button wire:click="updateQuantity({{ $productId }}, -1)"
-                                                    class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">-</button>
-                                                <span class="dark:text-gray-300">{{ $item['quantity'] }}</span>
-                                                <button wire:click="updateQuantity({{ $productId }}, 1)"
-                                                    class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">+</button>
-                                            </div>
-                                        </td>
-                                        <td class="text-right py-2">
-                                            <span
-                                                class="font-medium dark:text-gray-300">₱{{ number_format($item['price'] * $item['quantity'], 2) }}</span>
-                                        </td>
-                                        <td class="text-right py-2">
-                                            <flux:button icon="trash" variant="danger"
-                                                wire:click="removeFromCart({{ $productId }})"></flux:button>
-                                        </td>
-                                        </>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                        <div class="space-y-2">
-                            <div class="flex justify-between items-center mb-2">
-                                <label for="tax" class="text-sm font-medium dark:text-gray-300">Tax Rate
-                                    (%):</label>
-                                <input type="number" id="tax" wire:model.live="tax"
-                                    class="w-24 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-sm dark:text-gray-300"
-                                    min="0" max="100" step="1">
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <label for="discount" class="text-sm font-medium dark:text-gray-300">Discount
-                                    (%):</label>
-                                <input type="number" id="discount" wire:model.live="discount"
-                                    class="w-24 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-sm dark:text-gray-300"
-                                    min="0" max="100" step="1">
-                            </div>
-                        </div>
-                        <div class="space-y-2">
-                            <div class="flex justify-between items-center mb-2">
-                                <label for="payment_method" class="text-sm font-medium dark:text-gray-300">Payment
-                                    Method:</label>
-                                <select id="payment_method" wire:model.live="paymentMethod"
-                                    class="w-48 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-sm dark:text-gray-300">
-                                    <option value="">Select</option>
-                                    <option value="cash">CASH</option>
-                                    <option value="card">COD</option>
-                                    <option value="sign">SIGN</option>
-                                    <option value="returned">RETURNED</option>
-                                    <option value="refund">REFUND</option>
-                                </select>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <label for="payment_scheme" class="text-sm font-medium dark:text-gray-300">Payment
-                                    Scheme:</label>
-                                <select id="payment_scheme" wire:model.live="paymentScheme"
-                                    class="w-48 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-sm dark:text-gray-300">
-                                    <option value="">Select</option>
-                                    <option value="full-payment">FULL-PAYMENT</option>
-                                    <option value="partial-payment">PARTIAL-PAYMENT</option>
-                                </select>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <label for="payment_status" class="text-sm font-medium dark:text-gray-300">Admin
-                                    Note:</label>
-                                <select id="payment_status" wire:model.live="paymentStatus"
-                                    class="w-48 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-sm dark:text-gray-300">
-                                    <option value="">Select</option>
-                                    <option value="paid">PAID</option>
-                                    <option value="not-paid">NOT-PAID</option>
-                                </select>
-                            </div>
-                            <div class="mb-2">
-                                <label for="notes" class="text-sm font-medium dark:text-gray-300">General
-                                    Note:</label>
-                                <textarea placeholder="Enter general notes here" wire:model.live="notes"
-                                    class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm dark:text-gray-300"
-                                    rows="3"></textarea>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <label for="payment_scheme"
-                                    class="text-sm font-medium dark:text-gray-300">Server:</label>
-                                <select id="server" wire:model.live="server"
-                                    class="w-48 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-sm dark:text-gray-300">
-                                    @foreach ($users as $user)
-                                        <option value="{{ $user->id }}">{{ $user->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div class="border-t pt-4">
-                            <div class="space-y-2">
-                                <div class="flex justify-between text-base">
-                                    <span>Subtotal:</span>
-                                    <span>₱{{ number_format($total, 2) }}</span>
-                                </div>
-                                <div class="flex justify-between text-base">
-                                    <span>Tax ({{ $tax ?? 0 }}%):</span>
-                                    <span>₱{{ number_format($total * (($tax ?? 0) / 100), 2) }}</span>
-                                </div>
-                                <div class="flex justify-between text-base">
-                                    <span>Discount ({{ $discount ?? 0 }}%):</span>
-                                    <span>₱{{ number_format($total * ($discount / 100), 2) }}</span>
-                                </div>
-                                <div class="flex justify-between text-lg font-bold">
-                                    <span>Total:</span>
-                                    <span>₱{{ number_format($total + $total * ($tax / 100) - $total * ($discount / 100), 2) }}</span>
-                                </div>
-                            </div> <button wire:click="checkout"
-                                class="mt-4 w-full rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700">
-                                Submit Quotation
-                            </button>
-                        </div>
-                    </div>
-                @endif
+        <div class="p-6 bg-white shadow-lg rounded-xl text-gray-900 dark:bg-gray-800 dark:text-white">
+            <div class="flex items-center gap-4">
+                <svg class="w-8 h-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                    stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                </svg>
+                <div>
+                    <h3 class="text-xl font-bold text-blue-500">Total Customers</h3>
+                    <p class="text-4xl font-semibold text-blue-500">{{ number_format($totalCustomers) }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-6 bg-white shadow-lg rounded-xl text-gray-900 dark:bg-gray-800 dark:text-white">
+            <div class="flex items-center gap-4">
+                <svg class="w-8 h-8 text-purple-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                </svg>
+                <div>
+                    <h3 class="text-xl font-bold text-purple-500">Total Products</h3>
+                    <p class="text-4xl font-semibold text-purple-500">{{ number_format($totalProducts) }}</p>
+                </div>
             </div>
         </div>
     </div>
 
-    @if ($receiptModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div class="bg-white dark:bg-gray-800 p-8 rounded-lg w-[13cm]" id="printable-receipt">
-                <!-- Receipt Header -->
-                <div class="text-center mb-4">
-                    <h2 class="text-xl font-bold dark:text-white">Company Name</h2>
-                    <p class="text-sm dark:text-gray-300">123 Business Street</p>
-                    <p class="text-sm dark:text-gray-300">Phone: (123) 456-7890</p>
-                    <p class="text-sm dark:text-gray-300">Receipt #: {{ $this->receiptNumber }}</p>
-                    <p class="text-sm dark:text-gray-300">Date: {{ now()->format('M d, Y') }}</p>
-                </div>
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-1">
+        <!-- Sales Graph -->
+        <div x-data="{
+            period: 'week',
+            salesChart: null,
+            weekLabels: $wire.salesData.map((_, index) => {
+                const date = new Date();
+                date.setDate(date.getDate() - (6 - index));
+                return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            }),
+            monthLabels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            yearLabels: Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 4 + i),
+            weekData: $wire.salesData,
+            monthData: [],
+            yearData: [],
+            init() {
+                this.fetchMonthData();
+                this.fetchYearData();
+                this.initSalesChart();
 
-                <!-- Customer Info -->
-                <div class="mb-4">
-                    <p class="text-sm dark:text-gray-300">Customer:
-                        {{ Customer::find($customerSelected)->name ?? 'Walk-In' }}</p>
-                    <p class="text-sm dark:text-gray-300">Address:
-                        {{ Customer::find($customerSelected)->address ?? '' }}</p>
-                </div>
+                // Listen for Livewire updates
+                $wire.on('salesDataUpdated', () => {
+                    this.weekData = $wire.salesData;
+                    this.initSalesChart();
+                });
+            },
+            async fetchMonthData() {
+                const response = await $wire.getMonthlySalesData();
+                this.monthData = response;
+            },
+            async fetchYearData() {
+                const response = await $wire.getYearlySalesData();
+                this.yearData = response;
+            },
+            initSalesChart() {
+                if (this.salesChart) {
+                    this.salesChart.destroy();
+                }
 
-                <!-- Items -->
-                <div class="border-t border-b border-gray-200 dark:border-gray-700 py-2 mb-4">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr>
-                                <th class="text-right dark:text-gray-300"></th>
-                                <th class="text-left dark:text-gray-300"></th>
-                                <th class="text-center dark:text-gray-300">Product Name</th>
-                                <th class="text-right dark:text-gray-300">Unit Price</th>
-                                <th class="text-right dark:text-gray-300">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($cart as $item)
-                                <tr>
-                                    <td class="text-center dark:text-gray-300">{{ $item['quantity'] }}</td>
-                                    <td class="text-center dark:text-gray-300">{{ $item['unit'] }}</td>
-                                    <td class="text-center dark:text-gray-300">{{ $item['name'] }}</td>
-                                    <td class="text-right dark:text-gray-300">₱{{ number_format($item['price'], 2) }}
-                                    </td>
-                                    <td class="text-right dark:text-gray-300">
-                                        ₱{{ number_format($item['price'] * $item['quantity'], 2) }}
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+                const isDarkMode = document.documentElement.classList.contains('dark');
+                const textColor = isDarkMode ? '#fff' : '#000';
+                const gridColor = isDarkMode ? '#374151' : '#e5e7eb';
+                const bgColor = isDarkMode ? 'rgba(75, 192, 192, 0.4)' : 'rgba(75, 192, 192, 0.2)';
 
-                <!-- Totals -->
-                <div class="space-y-1 mb-4 text-right">
-                    <div class="flex justify-end text-sm">
-                        <span class="mr-4 dark:text-gray-300">Sub-Total:</span>
-                        <span class="dark:text-gray-300">₱{{ number_format($total, 2) }}</span>
-                    </div>
-                    <div class="flex justify-end text-sm">
-                        <span class="mr-4 dark:text-gray-300">Tax ({{ $tax }}%):</span>
-                        <span class="dark:text-gray-300">₱{{ number_format($total * ($tax / 100), 2) }}</span>
-                    </div>
-                    <div class="flex justify-end text-sm">
-                        <span class="mr-4 dark:text-gray-300">Discount ({{ $discount }}%):</span>
-                        <span class="dark:text-gray-300">₱{{ number_format($total * ($discount / 100), 2) }}</span>
-                    </div>
-                    <div class="flex justify-end font-bold">
-                        <span class="mr-4 dark:text-gray-300">Total Amount Due:</span>
-                        <span
-                            class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $total * ($discount / 100), 2) }}</span>
-                    </div>
-                </div>
+                const ctx = document.getElementById('salesChart').getContext('2d');
+                this.salesChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: this.period === 'week' ? this.weekLabels :
+                               this.period === 'month' ? this.monthLabels :
+                               this.yearLabels,
+                        datasets: [{
+                            label: 'Sales (Php)',
+                            data: this.period === 'week' ? this.weekData :
+                                  this.period === 'month' ? this.monthData :
+                                  this.yearData,
+                            backgroundColor: bgColor,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 2,
+                            borderRadius: 4,
+                            borderSkipped: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return 'Php ' + context.raw.toLocaleString('en-PH', {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        });
+                                    }
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Sales Performance Overview',
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                },
+                                padding: {
+                                    top: 10,
+                                    bottom: 20
+                                },
+                                color: textColor
+                            },
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: {
+                                    color: textColor
+                                },
+                                grid: {
+                                    color: gridColor,
+                                    display: false
+                                }
+                            },
+                            y: {
+                                ticks: {
+                                    color: textColor,
+                                    callback: function(value) {
+                                        return 'Php ' + value.toLocaleString('en-PH');
+                                    }
+                                },
+                                grid: {
+                                    color: gridColor
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }"
+            class="relative h-96 overflow-hidden rounded-xl border border-neutral-200 bg-white p-6 shadow-lg dark:border-neutral-700 dark:bg-gray-800">
+            <div class="mb-4 flex gap-2">
+                <button @click="period = 'week'; initSalesChart()"
+                    :class="{ 'bg-blue-500 text-white': period === 'week', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': period !== 'week' }"
+                    class="px-4 py-2 rounded-lg transition-colors">Week</button>
+                <button @click="period = 'month'; fetchMonthData(); initSalesChart()"
+                    :class="{ 'bg-blue-500 text-white': period === 'month', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': period !== 'month' }"
+                    class="px-4 py-2 rounded-lg transition-colors">Month</button>
+                <button @click="period = 'year'; fetchYearData(); initSalesChart()"
+                    :class="{ 'bg-blue-500 text-white': period === 'year', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': period !== 'year' }"
+                    class="px-4 py-2 rounded-lg transition-colors">Year</button>
+            </div>
+            <canvas id="salesChart"></canvas>
+        </div>
+    </div>
 
-                <!-- Buttons -->
-                <div class="mt-4 flex justify-end gap-2 print:hidden">
-                    <button wire:click="confirmAndPrint"
-                        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                        Confirm & Print
-                    </button>
-                    <button wire:click="$set('receiptModal', false)"
-                        class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
-                        Cancel
-                    </button>
+    <!-- Best Sellers and Recent Activities -->
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <!-- Best Sellers Chart -->
+        <div x-data="{
+            chartType: 'pie',
+            bestSellersChart: null,
+            init() {
+                this.initBestSellersChart();
+
+                $wire.on('bestSellersUpdated', () => {
+                    this.initBestSellersChart();
+                });
+            },
+            initBestSellersChart() {
+                if (this.bestSellersChart) {
+                    this.bestSellersChart.destroy();
+                }
+
+                const ctx = document.getElementById('bestSellersChart').getContext('2d');
+                const isDarkMode = document.documentElement.classList.contains('dark');
+                const textColor = isDarkMode ? '#fff' : '#000';
+
+                const backgroundColors = [
+                    'rgba(255, 99, 132, 0.7)',
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgba(255, 206, 86, 0.7)',
+                    'rgba(75, 192, 192, 0.7)',
+                    'rgba(153, 102, 255, 0.7)'
+                ];
+
+                this.bestSellersChart = new Chart(ctx, {
+                    type: this.chartType,
+                    data: {
+                        labels: $wire.bestSellersLabels.map((label, index) =>
+                            `${label} (${$wire.bestSellersData[index]} sold)`),
+                        datasets: [{
+                            data: $wire.bestSellersRevenue,
+                            backgroundColor: backgroundColors,
+                            borderColor: isDarkMode ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 255, 255, 0.8)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = $wire.bestSellersLabels[context.dataIndex] || '';
+                                        const value = context.raw || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = Math.round((value / total) * 100);
+                                        return [
+                                            label,
+                                            `Revenue: Php ${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+                                            `Market Share: ${percentage}%`
+                                        ];
+                                    }
+                                }
+                            },
+                            legend: {
+                                position: this.chartType === 'pie' ? 'right' : 'top',
+                                align: 'center',
+                                labels: {
+                                    boxWidth: 15,
+                                    padding: 15,
+                                    color: textColor,
+                                    font: {
+                                        size: 12
+                                    }
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Top Selling Products by Revenue',
+                                color: textColor,
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                },
+                                padding: {
+                                    top: 10,
+                                    bottom: 20
+                                }
+                            }
+                        },
+                        scales: this.chartType !== 'pie' ? {
+                            x: {
+                                ticks: {
+                                    color: textColor
+                                },
+                                grid: {
+                                    color: isDarkMode ? 'rgba(55, 65, 81, 0.5)' : 'rgba(229, 231, 235, 0.5)'
+                                }
+                            },
+                            y: {
+                                ticks: {
+                                    color: textColor,
+                                    callback: function(value) {
+                                        return 'Php ' + value.toLocaleString('en-PH');
+                                    }
+                                },
+                                grid: {
+                                    color: isDarkMode ? 'rgba(55, 65, 81, 0.5)' : 'rgba(229, 231, 235, 0.5)'
+                                }
+                            }
+                        } : undefined
+                    }
+                });
+            }
+        }"
+            class="relative h-96 overflow-hidden rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-gray-800">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Best Sellers</h3>
+                <div class="flex gap-2">
+                    <button @click="chartType = 'pie'; initBestSellersChart()"
+                        :class="{ 'bg-blue-500 text-white': chartType === 'pie', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': chartType !== 'pie' }"
+                        class="px-3 py-1 rounded-lg text-sm transition-colors">Pie</button>
+                    <button @click="chartType = 'bar'; initBestSellersChart()"
+                        :class="{ 'bg-blue-500 text-white': chartType === 'bar', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': chartType !== 'bar' }"
+                        class="px-3 py-1 rounded-lg text-sm transition-colors">Bar</button>
+                    <button @click="chartType = 'doughnut'; initBestSellersChart()"
+                        :class="{ 'bg-blue-500 text-white': chartType === 'doughnut', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': chartType !== 'doughnut' }"
+                        class="px-3 py-1 rounded-lg text-sm transition-colors">Doughnut</button>
                 </div>
             </div>
+            <div class="h-80">
+                <canvas id="bestSellersChart"></canvas>
+            </div>
         </div>
-    @endif
+
+        <!-- Recently Added Products -->
+        <div class="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-gray-800">
+            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Recently Added Products</h3>
+            <div class="space-y-4">
+                @foreach (\App\Models\Product::latest()->take(5)->get() as $product)
+                    <div
+                        class="flex justify-between items-center text-gray-700 dark:text-gray-300 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600 dark:text-blue-300"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-semibold">{{ $product->name }}</p>
+                                <p class="text-sm">Stock: {{ $product->stock }} | Price: Php
+                                    {{ number_format($product->price, 2) }}/unit</p>
+                            </div>
+                        </div>
+                        <span class="text-xs text-gray-500">{{ $product->created_at->diffForHumans() }}</span>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
 </div>
 
-<script>
-    window.addEventListener('print-receipt', () => {
-        window.print();
-    });
-</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

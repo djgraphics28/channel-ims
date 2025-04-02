@@ -15,22 +15,22 @@
                 <flux:navlist.group :heading="__('Platform')" class="grid">
                     <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" >{{ __('Dashboard') }}</flux:navlist.item>
                     @can('branches.view')
-                    <flux:navlist.item icon="building-office-2"  :href="route('branches')"  badge="2">{{ __('Branches') }}</flux:navlist.item>
+                    <flux:navlist.item icon="building-office-2"  :href="route('branches')"  >{{ __('Branches') }}</flux:navlist.item>
                     @endcan
                     @can('cashflow.view')
-                    <flux:navlist.item icon="banknotes"  badge="2">{{ __('Cash Flow') }}</flux:navlist.item>
+                    <flux:navlist.item icon="banknotes" :href="route(name: 'cashflows')" >{{ __('Cash Flow') }}</flux:navlist.item>
                     @endcan
                     @can('quotations.view')
-                        <flux:navlist.item icon="document-text" badge="2" :href="route('quotations')" :current="request()->routeIs(['pos', 'quotations'])">{{ __('Quotation') }}</flux:navlist.item>
+                        <flux:navlist.item icon="document-text"  :href="route('quotations')" :current="request()->routeIs(['pos', 'quotations'])">{{ __('Quotation') }}</flux:navlist.item>
                     @endcan
                     @can('products.view')
                     <flux:navlist.group expandable heading="Products Management" class="hidden lg:grid">
-                        <flux:navlist.item badge="12,000" icon="cube" :href="route('products')" >{{ __('Products') }}</flux:navlist.item>
+                        <flux:navlist.item  icon="cube" :href="route('products')" >{{ __('Products') }}</flux:navlist.item>
                         @can('categories.view')
-                        <flux:navlist.item badge="50" icon="tag" :href="route('categories')"  >{{ __('Categories') }}</flux:navlist.item>
+                        <flux:navlist.item  icon="tag" :href="route('categories')"  >{{ __('Categories') }}</flux:navlist.item>
                         @endcan
                         @can('units.view')
-                        <flux:navlist.item badge="35" icon="scale" :href="route('units')"  >{{ __('Units') }}</flux:navlist.item>
+                        <flux:navlist.item  icon="scale" :href="route('units')"  >{{ __('Units') }}</flux:navlist.item>
                         @endcan
                     </flux:navlist.group>
                     @endcan

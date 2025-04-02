@@ -117,6 +117,8 @@
             </flux:navlist>
         </flux:sidebar>
 
+        <flux:toast />
+
         {{ $slot }}
 
         @fluxScripts

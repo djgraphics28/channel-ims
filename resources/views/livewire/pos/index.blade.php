@@ -3,6 +3,8 @@
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 use App\Models\Order;
+use App\Models\Customer;
+use App\Models\User;
 use Livewire\Attributes\Title;
 
 new class extends Component {
@@ -15,51 +17,19 @@ new class extends Component {
     public $confirmingDelete = false;
     public $quotationToDelete;
 
-    public $form = [
-        'customer_name' => '',
-        'amount' => '',
-        'status' => 'pending',
-    ];
+    public $receiptModal = false;
 
-    public function rules()
-    {
-        return [
-            'form.customer_name' => 'required|string|max:255',
-            'form.amount' => 'required|numeric|min:0',
-            'form.status' => 'required|string',
-        ];
-    }
-
-    public function create()
-    {
-        $this->resetForm();
-        $this->isEditing = false;
-        $this->showModal = true;
-    }
-
-    public function edit(Quotation $quotation)
-    {
-        $this->quotation = $quotation;
-        $this->form = $quotation->only(['customer_name', 'amount', 'status']);
-        $this->isEditing = true;
-        $this->showModal = true;
-    }
-
-    public function save()
-    {
-        $this->validate();
-
-        if ($this->isEditing) {
-            $this->quotation->update($this->form);
-            $this->dispatch('notify', 'Quotation updated successfully!', 'success');
-        } else {
-            Order::create($this->form);
-            $this->dispatch('notify', 'Quotation created successfully!', 'success');
-        }
-
-        $this->showModal = false;
-        $this->resetForm();
-    }
+    public $cart = [];
+    public $customerSelected;
+    public $tax;
+    public $discount;
+    public $paymentMethod;
+    public $paymentScheme;
+    public $paymentStatus;
+    public $server;
+    public $notes;
+    public $receiptNumber;
+    public $total;
 
     public function confirmDelete($quotationId)
     {
@@ -78,14 +48,45 @@ new class extends Component {
         $this->quotationToDelete = null;
     }
 
-    private function resetForm()
+    public function printReceipt($orderId)
     {
-        $this->form = [
-            'customer_name' => '',
-            'amount' => '',
-            'status' => 'pending',
-        ];
-        $this->quotation = null;
+        $this->receiptModal = true;
+        $order = Order::with(['order_items', 'order_items.product', 'customer', 'payment'])->findOrFail($orderId);
+
+        $this->customerSelected = $order->customer_id;
+        $this->tax = $order->tax;
+        $this->discount = $order->discount;
+        $this->paymentMethod = $order->payment->payment_method;
+        $this->paymentScheme = $order->payment->payment_scheme;
+        $this->paymentStatus = $order->payment->payment_status;
+        $this->server = $order->assisted_by;
+        $this->notes = $order->notes;
+        $this->receiptNumber = $order->order_number;
+
+        foreach ($order->order_items as $item) {
+            $this->cart[$item->product_id] = [
+                'name' => $item->product->name,
+                'unit' => $item->product->unit_id,
+                'price' => $item->price,
+                'quantity' => $item->quantity,
+            ];
+        }
+
+        $this->calculateTotal();
+    }
+
+    public function calculateTotal()
+    {
+        $this->total = collect($this->cart)->sum(function ($item) {
+            return $item['price'] * $item['quantity'];
+        });
+    }
+
+    public function confirmAndPrint()
+    {
+        $this->dispatch('print-receipt');
+        $this->receiptModal = false;
+        $this->cart = [];
     }
 
     #[Title('Quotations')]
@@ -171,17 +172,18 @@ new class extends Component {
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Amount</th>
                             <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Payment Method</th>
                             <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Payment Scheme</th>
                             <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Order Items</th>
+                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Payment Status</th>
                             <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Status</th>
+                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Order Items</th>
+
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Actions</th>
@@ -196,13 +198,15 @@ new class extends Component {
                                     {{ strtoupper($quotation->customer->name ?? '') }}</td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
                                     Php{{ number_format($quotation->total_amount, 2) }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                     {{ strtoupper($quotation->payment->payment_method ?? '') }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                     {{ strtoupper($quotation->payment->payment_scheme ?? '') }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                    {{ strtoupper($quotation->payment->payment_status ?? '') }}</td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                     {{ $quotation->order_items_count ?? '' }}</td>
-                                <td class="whitespace-nowrap px-6 py-4">
+                                {{-- <td class="whitespace-nowrap px-6 py-4">
                                     <span
                                         class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
                                         {{ $quotation->status === 'approved'
@@ -212,12 +216,14 @@ new class extends Component {
                                                 : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-300') }}">
                                         {{ ucfirst($quotation->status) }}
                                     </span>
-                                </td>
+                                </td> --}}
                                 <td class="whitespace-nowrap px-6 py-4 space-x-2">
                                     <a href="{{ route('pos.edit', $quotation->id) }}"
-                                        class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">Edit</a>
+                                        class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">Edit</a>
                                     <button wire:click="confirmDelete({{ $quotation->id }})"
-                                        class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Delete</button>
+                                        class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">Delete</button>
+                                    <button wire:click="printReceipt({{ $quotation->id }})"
+                                        class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 cursor-pointer">Print</button>
                                 </td>
                             </tr>
                         @endforeach
@@ -266,4 +272,167 @@ new class extends Component {
             </div>
         </div>
     @endif
+
+    <!-- Receipt Modal -->
+    @if ($receiptModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div class="bg-white dark:bg-gray-800 p-8 rounded-lg w-[13cm]" id="printable-receipt">
+                <!-- Receipt Header -->
+                {{-- <div class="text-center mb-4">
+                    <h2 class="text-xl font-bold dark:text-white">Company Name</h2>
+                    <p class="text-sm dark:text-gray-300">123 Business Street</p>
+                    <p class="text-sm dark:text-gray-300">Phone: (123) 456-7890</p>
+                    <p class="text-sm dark:text-gray-300">Receipt #: {{ $this->receiptNumber }}</p>
+                    <p class="text-sm dark:text-gray-300">Date: {{ now()->format('M d, Y') }}</p>
+                </div> --}}
+                <br>
+                <br>
+                <br>
+
+                <!-- Header -->
+                <div class="mb-4">
+                    <table class="text-sm border-gray-200">
+                        <tr>
+                            <td width="15%" class="dark:text-gray-300">&nbsp;</td>
+                            <td width="35%" class="dark:text-gray-300">&nbsp;</td>
+                            <td width="35%" class="dark:text-gray-300">&nbsp;</td>
+                            <td width="20%" class="dark:text-gray-300 text-right">{{ now()->format('M d, Y') }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="15%" class="dark:text-gray-300"></td>
+                            <td width="35%"class="dark:text-gray-300">
+                                {{ Customer::find($customerSelected)->name ?? '-----' }}
+                            </td>
+                            <td class="dark:text-gray-300">&nbsp;</td>
+                            <td class="dark:text-gray-300">&nbsp;</td>
+
+                        </tr>
+                        <tr>
+                            <td width="15%" class="dark:text-gray-300"></td>
+                            <td width="45%" class="dark:text-gray-300">
+                                {{ Customer::find($customerSelected)->address ?? '' }}</td>
+                            <td class="dark:text-gray-300">&nbsp;</td>
+                            <td class="dark:text-gray-300">&nbsp;</td>
+                        </tr>
+                        <tr>
+                            <td width="15%" class="dark:text-gray-300"></td>
+                            <td width="35%"class="dark:text-gray-300">
+                                {{ Customer::find($customerSelected)->phone ?? '-----' }}</td>
+                            <td width="15%" class="dark:text-gray-300"></td>
+                            <td width="35%"class="dark:text-gray-300">
+                                <small>Cashier:{{ Auth::user()->name ?? '-----' }}</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="15%" class="dark:text-gray-300"></td>
+                            <td width="35%"class="dark:text-gray-300"></td>
+                            <td width="15%" class="dark:text-gray-300"></td>
+                            <td width="35%"class="dark:text-gray-300">
+                                <small>Server:{{ User::find($server)->name ?? '-----' }}</small>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                <br> <br> <br>
+
+                <!-- Items -->
+                <div class="border-t border-b border-gray-200 dark:border-gray-700 py-2 mb-4">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr>
+                                <th class="text-right dark:text-gray-300"></th>
+                                <th class="text-left dark:text-gray-300"></th>
+                                <th class="text-center dark:text-gray-300">Product Name</th>
+                                <th class="text-right dark:text-gray-300">Unit Price</th>
+                                <th class="text-right dark:text-gray-300">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($cart as $item)
+                                <tr>
+                                    <td class="text-center dark:text-gray-300">{{ $item['quantity'] }}</td>
+                                    <td class="text-center dark:text-gray-300">{{ $item['unit'] }}</td>
+                                    <td class="text-center dark:text-gray-300">{{ $item['name'] }}</td>
+                                    <td class="text-right dark:text-gray-300">₱{{ number_format($item['price'], 2) }}
+                                    </td>
+                                    <td class="text-right dark:text-gray-300">
+                                        ₱{{ number_format($item['price'] * $item['quantity'], 2) }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Totals -->
+                <div class="space-y-1 mb-4 text-right">
+                    <div class="flex justify-end text-sm">
+                        <span class="mr-4 dark:text-gray-300">Sub-Total:</span>
+                        <span class="dark:text-gray-300">₱{{ number_format($total, 2) }}</span>
+                    </div>
+                    <div class="flex justify-end text-sm">
+                        <span class="mr-4 dark:text-gray-300">Tax ({{ $tax }}%):</span>
+                        <span class="dark:text-gray-300">₱{{ number_format($total * ($tax / 100), 2) }}</span>
+                    </div>
+                    <div class="flex justify-end font-bold">
+                        <span class="mr-4 dark:text-gray-300">Net Price:</span>
+                        <span
+                            class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $total * ($discount / 100), 2) }}</span>
+                    </div>
+                    <div class="flex justify-end text-sm">
+                        <span class="mr-4 dark:text-gray-300">Discount <i>(less)</i> ({{ $discount }}%):</span>
+                        <span class="dark:text-gray-300">₱{{ number_format($total * ($discount / 100), 2) }}</span>
+                    </div>
+                    <div class="flex justify-end font-bold">
+                        <span class="mr-4 dark:text-gray-300">Total Amount Due:</span>
+                        <span
+                            class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $total * ($discount / 100), 2) }}</span>
+                    </div>
+                </div>
+
+                {{-- general notes --}}
+                <div class="space-y-1 mb-4 text-left">
+                    <div class="flex justify-start text-sm">
+                        <span class="mr-4 dark:text-gray-300">General Notes:</span>
+                        <span class="dark:text-gray-300">{{ $notes }}</span>
+                    </div>
+                    <br>
+                    <div class="text-sm">
+                        <span><small>Payment Method: {{ strtoupper($paymentMethod) }}</small></span><br>
+                        <span><small>Payment Scheme: {{ strtoupper($paymentScheme) }}</small></span><br>
+                        <span><small>Payment Status: {{ strtoupper($paymentStatus) }}</small></span>
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="mt-4 flex justify-end gap-2 print:hidden">
+                    <button wire:click="confirmAndPrint"
+                        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                        Confirm & Print
+                    </button>
+                    <button wire:click="$set('receiptModal', false)"
+                        class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>
+
+<script>
+    window.addEventListener('print-receipt', () => {
+        let printContents = document.getElementById('printable-receipt').innerHTML;
+        let originalContents = document.body.innerHTML;
+
+        document.body.innerHTML = printContents;
+        window.print();
+        document.body.innerHTML = originalContents;
+
+        // Redirect to /quotations after printing
+        setTimeout(() => {
+            window.location.href = '/quotations';
+        }, 500);
+    });
+</script>

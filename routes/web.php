@@ -29,6 +29,8 @@ Route::middleware(['auth','check.active'])->group(function () {
     Volt::route('quotations', 'pos.index')->name('quotations');
     Volt::route('pos', 'pos.create')->name('pos');
     Volt::route('pos/{orderId}', 'pos.edit')->name('pos.edit');
+    Volt::route('cashflows', 'cashflow.index')->name('cashflows');
+
 });
 
 require __DIR__.'/auth.php';
