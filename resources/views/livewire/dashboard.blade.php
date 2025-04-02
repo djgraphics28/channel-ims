@@ -26,15 +26,19 @@ new class extends Component {
         $weeklySales = [];
         $weeklyLabels = [];
 
-        for ($date = $startOfWeek; $date <= $endOfWeek; $date->addDay()) {
-            $daySales = Payment::whereDate('created_at', $date)->where('payment_status', 'paid')->sum('amount_paid');
+        // Create a copy of startOfWeek to iterate through dates
+        $currentDate = $startOfWeek->copy();
+
+        while ($currentDate <= $endOfWeek) {
+            $daySales = Payment::whereDate('created_at', $currentDate)->where('payment_status', 'paid')->sum('amount_paid');
 
             $weeklySales[] = $daySales;
-            $weeklyLabels[] = $date->format('l, F j');
+            $weeklyLabels[] = $currentDate->format('l, F j');
+
+            $currentDate->addDay();
         }
 
         $this->salesData = $weeklySales;
-
         // Get best sellers data (top 3 products)
         $bestSellers = Product::withCount([
             'orderItems as total_sold' => function ($query) {

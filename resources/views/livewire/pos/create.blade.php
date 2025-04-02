@@ -54,8 +54,8 @@ new class extends Component {
     {
         return [
             // 'form.name' => 'required|string|max:255',
-            'form.price' => 'required|numeric|min:0',
-            'form.quantity' => 'required|integer|min:0',
+            // 'form.price' => 'required|numeric|min:0',
+            // 'form.quantity' => 'required|integer|min:0',
             'receiptNumber' => 'required',
             'paymentScheme' => 'required',
             'paymentStatus' => 'required',
