@@ -41,6 +41,13 @@ new class extends Component {
 
     public $receiptModal = false;
 
+    public $customerModal = false;
+    public $name;
+    public $email;
+    public $phone;
+    public $address;
+    public $birth_date;
+
     public function mount($orderId)
     {
         $order = Order::with(['order_items', 'order_items.product', 'customer', 'payment'])->findOrFail($orderId);
@@ -286,6 +293,37 @@ new class extends Component {
         ];
     }
 
+    public function addCustomer()
+    {
+        $this->customerModal = true;
+    }
+
+    public function saveCustomer()
+    {
+        Validator::make(
+            [
+                'name' => $this->name,
+                'phone' => $this->phone,
+            ],
+            [
+                'name' => 'required',
+                'phone' => 'required',
+            ],
+        )->validate();
+        Customer::create([
+            'name' => $this->name,
+            'phone' => $this->phone,
+            'email' => $this->email,
+            'address' => $this->address,
+            'birth_date' => $this->birth_date,
+        ]);
+
+        flash()->success('Customer created successfully!');
+        $this->reset(['name', 'phone', 'email', 'address', 'birth_date']);
+
+        $this->customerModal = false;
+    }
+
     public function orderNumber()
     {
         $prefix = 'QT';
@@ -376,12 +414,17 @@ new class extends Component {
                 @else
                     <div class="space-y-4">
                         <div class="mb-4">
-                            <flux:input placeholder="Enter Receipt Number here" type="text" readonly
+                            <flux:input placeholder="Enter Receipt Number here" type="text"
                                 :label="__(key: 'Receipt Number')" wire:model.live="receiptNumber" />
                             <br>
-                            <flux:input type="text" wire:model.live="customerSearch"
-                                :label="__(key: 'Search Customer')" placeholder="Search customer..." />
-                            <!-- Remove value attribute since wire:model handles the binding -->
+                            <div class="flex items-center justify-between">
+                                <flux:input type="text" wire:model.live="customerSearch"
+                                    :label="__(key: 'Search Customer')" placeholder="Search customer..."
+                                    class="flex-1" />
+                                <flux:button title="Add New Customer" wire:click="addCustomer" icon="plus"
+                                    class="mt-6 ml-2">
+                                </flux:button>
+                            </div> <!-- Remove value attribute since wire:model handles the binding -->
                             @if ($filteredCustomers && count($filteredCustomers) > 0)
                                 <div
                                     class="absolute z-10 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg mt-1">
@@ -448,7 +491,7 @@ new class extends Component {
                                 </div>
                                 <div>
                                     <flux:input type="number" id="discount" wire:model.live="discount"
-                                        label="Discount (%):" min="0" max="100" step="0.1" />
+                                        label="Discount:" min="0" max="100" step="0.1" />
                                 </div>
                             </div>
 
@@ -515,13 +558,14 @@ new class extends Component {
                                 <span>₱{{ number_format($total * (floatval($tax) / 100), 2) }}</span>
                             </div>
                             <div class="flex justify-between">
-                                <span>Discount ({{ floatval($discount) }}%):</span>
-                                <span>₱{{ number_format($total * (floatval($discount) / 100), 2) }}</span>
+                                <span>Discount:</span>
+                                <span>{{ $discount <= 0 ? '' : '-' }} ₱{{ number_format(floatval($discount), 2) }}</span>
                             </div>
                             <div class="flex justify-between font-bold text-lg">
                                 <span>Total:</span>
-                                <span>₱{{ number_format($total + ($total * floatval($tax)) / 100 - ($total * floatval($discount)) / 100, 2) }}</span>
+                                <span>₱{{ number_format($total + ($total * floatval($tax)) / 100 - floatval($discount), 2) }}</span>
                             </div>
+
 
                             <button wire:click="checkout" wire:loading.attr="disabled"
                                 class="mt-4 w-full rounded-lg bg-green-600 px-4 py-3 text-white hover:bg-green-700 transition font-medium">
@@ -541,12 +585,12 @@ new class extends Component {
             <div class="bg-white dark:bg-gray-800 p-8 rounded-lg w-[13cm]" id="printable-receipt">
                 <!-- Receipt Header -->
                 {{-- <div class="text-center mb-4">
-                    <h2 class="text-xl font-bold dark:text-white">Company Name</h2>
-                    <p class="text-sm dark:text-gray-300">123 Business Street</p>
-                    <p class="text-sm dark:text-gray-300">Phone: (123) 456-7890</p>
-                    <p class="text-sm dark:text-gray-300">Receipt #: {{ $this->receiptNumber }}</p>
-                    <p class="text-sm dark:text-gray-300">Date: {{ now()->format('M d, Y') }}</p>
-                </div> --}}
+                <h2 class="text-xl font-bold dark:text-white">Company Name</h2>
+                <p class="text-sm dark:text-gray-300">123 Business Street</p>
+                <p class="text-sm dark:text-gray-300">Phone: (123) 456-7890</p>
+                <p class="text-sm dark:text-gray-300">Receipt #: {{ $this->receiptNumber }}</p>
+                <p class="text-sm dark:text-gray-300">Date: {{ now()->format('M d, Y') }}</p>
+            </div> --}}
                 <br>
                 <br>
                 <br>
@@ -572,8 +616,9 @@ new class extends Component {
                         </tr>
                         <tr>
                             <td width="15%" class="dark:text-gray-300"></td>
-                            <td width="45%" class="dark:text-gray-300">
-                                {{ Customer::find($customerSelected)->address ?? '' }}</td>
+                            <td width="75%" class="dark:text-gray-300">
+                                <small>{{ Customer::find($customerSelected)->address ?? '' }}</small>
+                            </td>
                             <td class="dark:text-gray-300">&nbsp;</td>
                             <td class="dark:text-gray-300">&nbsp;</td>
                         </tr>
@@ -596,7 +641,7 @@ new class extends Component {
                         </tr>
                     </table>
                 </div>
-                <br> <br> <br>
+                <br>
 
                 <!-- Items -->
                 <div class="border-t border-b border-gray-200 dark:border-gray-700 py-2 mb-4">
@@ -615,7 +660,7 @@ new class extends Component {
                                 <tr>
                                     <td class="text-center dark:text-gray-300">{{ $item['quantity'] }}</td>
                                     <td class="text-center dark:text-gray-300">{{ $item['unit'] }}</td>
-                                    <td class="text-center dark:text-gray-300">{{ $item['name'] }}</td>
+                                    <td class="text-center dark:text-gray-300"><small>{{ $item['name'] }}</small></td>
                                     <td class="text-right dark:text-gray-300">₱{{ number_format($item['price'], 2) }}
                                     </td>
                                     <td class="text-right dark:text-gray-300">
@@ -630,34 +675,46 @@ new class extends Component {
                 <!-- Totals -->
                 <div class="space-y-1 mb-4 text-right">
                     <div class="flex justify-end text-sm">
-                        <span class="mr-4 dark:text-gray-300">Sub-Total:</span>
-                        <span class="dark:text-gray-300">₱{{ number_format($total, 2) }}</span>
+                        <small>
+                            <span class="mr-4 dark:text-gray-300">Sub-Total:</span>
+                            <span class="dark:text-gray-300">₱{{ number_format($total, 2) }}</span>
+                        </small>
+
                     </div>
                     <div class="flex justify-end text-sm">
-                        <span class="mr-4 dark:text-gray-300">Tax ({{ $tax }}%):</span>
-                        <span class="dark:text-gray-300">₱{{ number_format($total * ($tax / 100), 2) }}</span>
+                        <small>
+                            <span class="mr-4 dark:text-gray-300">Tax ({{ $tax }}%):</span>
+                            <span class="dark:text-gray-300">₱{{ number_format($total * ($tax / 100), 2) }}</span>
+                        </small>
+
                     </div>
                     <div class="flex justify-end font-bold">
-                        <span class="mr-4 dark:text-gray-300">Net Price:</span>
-                        <span
-                            class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $total * ($discount / 100), 2) }}</span>
+                        <small>
+                            <span class="mr-4 dark:text-gray-300">Net Price:</span>
+                            <span
+                                class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount, 2) }}</span>
+                        </small>
+
                     </div>
                     <div class="flex justify-end text-sm">
-                        <span class="mr-4 dark:text-gray-300">Discount <i>(less)</i> ({{ $discount }}%):</span>
-                        <span class="dark:text-gray-300">₱{{ number_format($total * ($discount / 100), 2) }}</span>
+                        <small>
+                            <span class="mr-4 dark:text-gray-300">Discount <i>(less)</i>:</span>
+                            <span class="dark:text-gray-300">₱{{ number_format($discount, 2) }}</span>
+                        </small>
+
                     </div>
                     <div class="flex justify-end font-bold">
                         <span class="mr-4 dark:text-gray-300">Total Amount Due:</span>
                         <span
-                            class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $total * ($discount / 100), 2) }}</span>
+                            class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount, 2) }}</span>
                     </div>
                 </div>
 
                 {{-- general notes --}}
                 <div class="space-y-1 mb-4 text-left">
                     <div class="flex justify-start text-sm">
-                        <span class="mr-4 dark:text-gray-300">General Notes:</span>
-                        <span class="dark:text-gray-300">{{ $notes }}</span>
+                        <span class="mr-4 dark:text-gray-300">General Notes:</span><br>
+                        <span class="dark:text-gray-300"><small>{{ $notes }}</small></span>
                     </div>
                     <br>
                     <div class="text-sm">
@@ -677,6 +734,60 @@ new class extends Component {
                         class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
                         Cancel
                     </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($customerModal)
+        <div class="fixed inset-0 z-10 overflow-y-auto">
+            <div class="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                    <div class="absolute inset-0 bg-gray-500 dark:bg-gray-800 opacity-75"></div>
+                </div>
+                <div
+                    class="inline-block transform overflow-hidden rounded-lg bg-white dark:bg-gray-900 text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
+                    <form wire:submit="saveCustomer">
+                        <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <div class="mb-4">
+                                <flux:input wire:model="name" :label="__('Name')" type="text" required
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                            </div>
+                            {{-- <div class="mb-4">
+                            <flux:input wire:model="form.document_id" :label="__('Document ID')" type="text"
+                                class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                            @error('form.document_id')
+                                <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                            @enderror
+                        </div> --}}
+                            <div class="mb-4">
+                                <flux:input wire:model="email" :label="__('Email')" type="email"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="phone" :label="__('Phone')" type="text"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="address" :label="__('Address')" type="text"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="birth_date" :label="__('Birth Date')" type="date"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-800 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                            <button type="submit"
+                                class="inline-flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-400 sm:ml-3 sm:w-auto sm:text-sm">
+                                Save
+                            </button>
+                            <button type="button" wire:click="$set('customerModal', false)"
+                                class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-base font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-offset-2 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

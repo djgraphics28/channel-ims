@@ -315,8 +315,9 @@ new class extends Component {
                         </tr>
                         <tr>
                             <td width="15%" class="dark:text-gray-300"></td>
-                            <td width="45%" class="dark:text-gray-300">
-                                {{ Customer::find($customerSelected)->address ?? '' }}</td>
+                            <td width="75%" class="dark:text-gray-300">
+                                <small>{{ Customer::find($customerSelected)->address ?? '' }}</small>
+                            </td>
                             <td class="dark:text-gray-300">&nbsp;</td>
                             <td class="dark:text-gray-300">&nbsp;</td>
                         </tr>
@@ -339,7 +340,7 @@ new class extends Component {
                         </tr>
                     </table>
                 </div>
-                <br> <br> <br>
+                <br>
 
                 <!-- Items -->
                 <div class="border-t border-b border-gray-200 dark:border-gray-700 py-2 mb-4">
@@ -358,7 +359,7 @@ new class extends Component {
                                 <tr>
                                     <td class="text-center dark:text-gray-300">{{ $item['quantity'] }}</td>
                                     <td class="text-center dark:text-gray-300">{{ $item['unit'] }}</td>
-                                    <td class="text-center dark:text-gray-300">{{ $item['name'] }}</td>
+                                    <td class="text-center dark:text-gray-300"><small>{{ $item['name'] }}</small></td>
                                     <td class="text-right dark:text-gray-300">₱{{ number_format($item['price'], 2) }}
                                     </td>
                                     <td class="text-right dark:text-gray-300">
@@ -373,34 +374,46 @@ new class extends Component {
                 <!-- Totals -->
                 <div class="space-y-1 mb-4 text-right">
                     <div class="flex justify-end text-sm">
-                        <span class="mr-4 dark:text-gray-300">Sub-Total:</span>
-                        <span class="dark:text-gray-300">₱{{ number_format($total, 2) }}</span>
+                        <small>
+                            <span class="mr-4 dark:text-gray-300">Sub-Total:</span>
+                            <span class="dark:text-gray-300">₱{{ number_format($total, 2) }}</span>
+                        </small>
+
                     </div>
                     <div class="flex justify-end text-sm">
-                        <span class="mr-4 dark:text-gray-300">Tax ({{ $tax }}%):</span>
-                        <span class="dark:text-gray-300">₱{{ number_format($total * ($tax / 100), 2) }}</span>
+                        <small>
+                            <span class="mr-4 dark:text-gray-300">Tax ({{ $tax }}%):</span>
+                            <span class="dark:text-gray-300">₱{{ number_format($total * ($tax / 100), 2) }}</span>
+                        </small>
+
                     </div>
                     <div class="flex justify-end font-bold">
-                        <span class="mr-4 dark:text-gray-300">Net Price:</span>
-                        <span
-                            class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $total * ($discount / 100), 2) }}</span>
+                        <small>
+                            <span class="mr-4 dark:text-gray-300">Net Price:</span>
+                            <span
+                                class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount, 2) }}</span>
+                        </small>
+
                     </div>
                     <div class="flex justify-end text-sm">
-                        <span class="mr-4 dark:text-gray-300">Discount <i>(less)</i> ({{ $discount }}%):</span>
-                        <span class="dark:text-gray-300">₱{{ number_format($total * ($discount / 100), 2) }}</span>
+                        <small>
+                            <span class="mr-4 dark:text-gray-300">Discount <i>(less)</i>:</span>
+                            <span class="dark:text-gray-300">₱{{ number_format($discount, 2) }}</span>
+                        </small>
+
                     </div>
                     <div class="flex justify-end font-bold">
                         <span class="mr-4 dark:text-gray-300">Total Amount Due:</span>
                         <span
-                            class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $total * ($discount / 100), 2) }}</span>
+                            class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount, 2) }}</span>
                     </div>
                 </div>
 
                 {{-- general notes --}}
                 <div class="space-y-1 mb-4 text-left">
                     <div class="flex justify-start text-sm">
-                        <span class="mr-4 dark:text-gray-300">General Notes:</span>
-                        <span class="dark:text-gray-300">{{ $notes }}</span>
+                        <span class="mr-4 dark:text-gray-300">General Notes:</span><br>
+                        <span class="dark:text-gray-300"><small>{{ $notes }}</small></span>
                     </div>
                     <br>
                     <div class="text-sm">
