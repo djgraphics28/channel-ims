@@ -143,7 +143,8 @@ new class extends Component {
 
     <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
         <div class="flex space-x-4 mb-4">
-            <flux:button wire:click="setActiveTab('in')" :variant="$isActiveTab === 'in' ? 'filled' : 'subtle'" class="flex items-center space-x-2">
+            <flux:button wire:click="setActiveTab('in')" :variant="$isActiveTab === 'in' ? 'filled' : 'subtle'"
+                class="flex items-center space-x-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd"
                         d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
@@ -152,10 +153,10 @@ new class extends Component {
                 <span>Money In</span>
             </flux:button>
 
-            <flux:button wire:click="setActiveTab('out')" :variant="$isActiveTab === 'out' ? 'filled' : 'subtle'" class="flex items-center space-x-2">
+            <flux:button wire:click="setActiveTab('out')" :variant="$isActiveTab === 'out' ? 'filled' : 'subtle'"
+                class="flex items-center space-x-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd"
-                        d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                    <path fill-rule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
                         clip-rule="evenodd" />
                 </svg>
                 <span>Money Out</span>
@@ -216,6 +217,10 @@ new class extends Component {
                             </th>
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Created At
+                            </th>
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Actions
                             </th>
                         </tr>
@@ -244,6 +249,9 @@ new class extends Component {
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
                                     {{ $cashflow->creator->name }}
+                                </td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
+                                    {{ $cashflow->created_at }}
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 space-x-2">
                                     @can('cashflow.edit')
