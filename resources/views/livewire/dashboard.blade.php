@@ -6,74 +6,147 @@ use App\Models\Product;
 use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\CashFlow;
+use App\Models\Branch;
 use Carbon\Carbon;
 
 new class extends Component {
     public $salesData = [];
     public $bestSellersData = [];
     public $bestSellersLabels = [];
+    public $branches = [];
+    public $selectedBranch = null;
+    public $branchSales = [];
+
+    public function mount()
+    {
+        if (
+            auth()
+                ->user()
+                ->hasRole(['superadmin', 'admin'])
+        ) {
+            $this->branches = Branch::all();
+        } else {
+            $this->selectedBranch = auth()->user()->branch_id;
+        }
+    }
 
     #[Title('Dashboard')]
     public function with()
     {
-        // Get today's date
-        $today = today();
+        // Base query for payments with branch filtering
+        $paymentQuery = Payment::where('payment_status', 'paid')
+            ->when($this->selectedBranch, function ($query) {
+                $query->whereHas('order', function ($q) {
+                    $q->where('branch_id', $this->selectedBranch);
+                });
+            })
+            ->when(
+                !auth()
+                    ->user()
+                    ->hasRole(['superadmin', 'admin']),
+                function ($query) {
+                    $query->whereHas('order', function ($q) {
+                        $q->where('branch_id', auth()->user()->branch_id);
+                    });
+                },
+            );
 
-        // Get sales data for the current week
+        // Weekly sales data
+        $today = today();
         $startOfWeek = $today->copy()->startOfWeek();
         $endOfWeek = $today->copy()->endOfWeek();
-
         $weeklySales = [];
         $weeklyLabels = [];
 
-        // Create a copy of startOfWeek to iterate through dates
         $currentDate = $startOfWeek->copy();
-
         while ($currentDate <= $endOfWeek) {
-            $daySales = Payment::whereDate('created_at', $currentDate)->where('payment_status', 'paid')->sum('amount_paid');
+            $daySales = (clone $paymentQuery)->whereDate('created_at', $currentDate)->sum('amount_paid');
 
             $weeklySales[] = $daySales;
             $weeklyLabels[] = $currentDate->format('l, F j');
-
             $currentDate->addDay();
         }
 
         $this->salesData = $weeklySales;
-        // Get best sellers data (top 3 products)
+
+        // Best sellers data
         $bestSellers = Product::withCount([
             'orderItems as total_sold' => function ($query) {
                 $query->whereHas('order', function ($q) {
-                    $q->where('status', 'completed');
+                    $q->where('status', 'completed')
+                        ->when($this->selectedBranch, function ($q) {
+                            $q->where('branch_id', $this->selectedBranch);
+                        })
+                        ->when(
+                            !auth()
+                                ->user()
+                                ->hasRole(['superadmin', 'admin']),
+                            function ($q) {
+                                $q->where('branch_id', auth()->user()->branch_id);
+                            },
+                        );
                 });
             },
         ])
             ->orderByDesc('total_sold')
             ->take(5)
             ->get();
+
         $this->bestSellersData = $bestSellers->pluck('total_sold')->toArray();
         $this->bestSellersLabels = $bestSellers->pluck('name')->toArray();
 
-        $dailySales = Payment::whereDate('created_at', today())->where('payment_status', 'paid')->sum('amount_paid');
-        $totalCash = Payment::where('payment_method', 'cash')->where('payment_status', 'paid')->whereDate('created_at', today())->sum('amount_paid');
-        $totalCod = Payment::where('payment_method', 'cod')->where('payment_status', 'paid')->whereDate('created_at', today())->sum('amount_paid');
-        $totalSign = Payment::where('payment_method', 'sign')->where('payment_status', 'paid')->whereDate('created_at', today())->sum('amount_paid');
+        // Daily metrics
+        $dailySalesQuery = (clone $paymentQuery)->whereDate('created_at', today());
+        $dailySales = $dailySalesQuery->sum('amount_paid');
+        //i want to have a separate $dailySales for each Branches
+        $branchSales = collect($this->branches)
+            ->map(function ($branch) use ($dailySalesQuery) {
+                return [
+                    'name' => $branch->name,
+                    'sales' => (clone $dailySalesQuery)
+                        ->whereHas('order', function ($q) use ($branch) {
+                            $q->where('branch_id', $branch->id);
+                        })
+                        ->sum('amount_paid'),
+                ];
+            })
+            ->values()
+            ->all();
 
-        //return and refund
-        $totalReturn = Payment::where('payment_method', 'return')->where('payment_status', 'paid')->whereDate('created_at', today())->sum('amount_paid');
-        $totalRefund = Payment::where('payment_method', 'refund')->where('payment_status', 'paid')->whereDate('created_at', today())->sum('amount_paid');
+        $this->branchSales = $branchSales;
 
-        //daily sales minus the return and refund
+        $totalCash = (clone $dailySalesQuery)->where('payment_method', 'cash')->sum('amount_paid');
+        $totalCod = (clone $dailySalesQuery)->where('payment_method', 'cod')->sum('amount_paid');
+        $totalSign = (clone $dailySalesQuery)->where('payment_method', 'sign')->sum('amount_paid');
+        $totalReturn = (clone $dailySalesQuery)->where('payment_method', 'return')->sum('amount_paid');
+        $totalRefund = (clone $dailySalesQuery)->where('payment_method', 'refund')->sum('amount_paid');
+
         $dailySales = $dailySales - ($totalReturn - $totalRefund);
 
-        //cashflows
-        $totalMoneyIn = CashFlow::whereDate('created_at', today())->where('type', 'in')->sum('amount');
-        $totalMoneyOut = CashFlow::whereDate('created_at', today())->where('type', 'out')->sum('amount');
+        // Cashflows
+        $cashFlowQuery = CashFlow::whereDate('created_at', today())
+            ->when($this->selectedBranch, function ($query) {
+                $query->where('branch_id', $this->selectedBranch);
+            })
+            ->when(
+                !auth()
+                    ->user()
+                    ->hasRole(['superadmin', 'admin']),
+                function ($query) {
+                    $query->where('branch_id', auth()->user()->branch_id);
+                },
+            );
 
-        $cashOnHand = $totalMoneyIn - $totalMoneyOut;
+        $totalMoneyIn = $cashFlowQuery->clone()->where('type', 'in')->sum('amount');
+        $totalMoneyOut = $cashFlowQuery->clone()->where('type', 'out')->sum('amount');
+        $cashOnHand = $dailySales + $totalMoneyIn - $totalMoneyOut;
+
+        // Customers count (assuming customers have branch_id)
+        $totalCustomers = Customer::all()->count();
 
         return [
-            'totalProducts' => Product::all()->count(),
-            'totalCustomers' => Customer::all()->count(),
+            'totalProducts' => Product::count(), // Products aren't branch-specific
+            'totalCustomers' => $totalCustomers,
             'dailySales' => $dailySales,
             'totalCash' => $totalCash,
             'totalCod' => $totalCod,
@@ -83,37 +156,97 @@ new class extends Component {
             'totalMoneyIn' => $totalMoneyIn,
             'totalMoneyOut' => $totalMoneyOut,
             'cashOnHand' => $cashOnHand,
+            'salesChartData' => $this->getSalesChartData(),
+        ];
+    }
+    public function getSalesChartData()
+    {
+        $paymentQuery = Payment::where('payment_status', 'paid')
+            ->when($this->selectedBranch, function ($query) {
+                $query->whereHas('order', function ($q) {
+                    $q->where('branch_id', $this->selectedBranch);
+                });
+            })
+            ->when(
+                !auth()
+                    ->user()
+                    ->hasRole(['superadmin', 'admin']),
+                function ($query) {
+                    $query->whereHas('order', function ($q) {
+                        $q->where('branch_id', auth()->user()->branch_id);
+                    });
+                },
+            );
+
+        // Daily data for last 7 days
+        $dailyData = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = now()->subDays($i);
+            $dailyData[] = [
+                'date' => $date->format('D, M j'),
+                'total' => (clone $paymentQuery)->whereDate('created_at', $date)->sum('amount_paid'),
+                'cash' => (clone $paymentQuery)->whereDate('created_at', $date)->where('payment_method', 'cash')->sum('amount_paid'),
+                'cod' => (clone $paymentQuery)->whereDate('created_at', $date)->where('payment_method', 'cod')->sum('amount_paid'),
+                'sign' => (clone $paymentQuery)->whereDate('created_at', $date)->where('payment_method', 'sign')->sum('amount_paid'),
+            ];
+        }
+
+        // Monthly data for last 12 months
+        $monthlyData = [];
+        for ($i = 11; $i >= 0; $i--) {
+            $date = now()->subMonths($i);
+            $monthlyData[] = [
+                'month' => $date->format('M Y'),
+                'total' => (clone $paymentQuery)->whereMonth('created_at', $date->month)->whereYear('created_at', $date->year)->sum('amount_paid'),
+            ];
+        }
+
+        // Payment methods breakdown
+        $paymentMethods = [
+            'cash' => (clone $paymentQuery)->where('payment_method', 'cash')->sum('amount_paid'),
+            'cod' => (clone $paymentQuery)->where('payment_method', 'cod')->sum('amount_paid'),
+            'sign' => (clone $paymentQuery)->where('payment_method', 'sign')->sum('amount_paid'),
+        ];
+
+        return [
+            'daily' => $dailyData,
+            'monthly' => $monthlyData,
+            'methods' => $paymentMethods,
+            'total_sales' => array_sum(array_column($dailyData, 'total')),
+            'average_daily' => array_sum(array_column($dailyData, 'total')) / 7,
         ];
     }
 
-    public function getMonthlySalesData()
+    public function updatedSelectedBranch()
     {
-        $monthlySales = [];
-        for ($i = 1; $i <= 12; $i++) {
-            $monthlySales[] = Payment::whereMonth('created_at', $i)->whereYear('created_at', now()->year)->where('payment_status', 'paid')->sum('amount_paid');
-        }
-        return $monthlySales;
-    }
-
-    public function getYearlySalesData()
-    {
-        $yearlySales = [];
-        for ($i = 4; $i >= 0; $i--) {
-            $year = now()->year - $i;
-            $yearlySales[] = Payment::whereYear('created_at', $year)->where('payment_status', 'paid')->sum('amount_paid');
-        }
-        return $yearlySales;
+        $this->dispatch('salesDataUpdated');
+        $this->dispatch('bestSellersUpdated');
     }
 }; ?>
 
 <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
+    <!-- Branch Filter (only show if user is admin/superadmin) -->
+    @if (auth()->user()->hasRole(['superadmin', 'admin']))
+        <div class="p-4 bg-white shadow-lg rounded-xl dark:bg-gray-800">
+            <label for="branchFilter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by
+                Branch</label>
+            <select id="branchFilter" wire:model.live="selectedBranch"
+                class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                <option value="">All Branches</option>
+                @foreach ($branches as $branch)
+                    <option value="{{ $branch->id }}">{{ $branch->name }}</option>
+                @endforeach
+            </select>
+        </div>
+    @endif
+
     <!-- Dashboard Stats -->
     <div class="grid grid-cols-1 gap-6 md:grid-cols-4">
         <!-- Daily Sales Card -->
         <div class="p-6 bg-white shadow-lg rounded-xl text-gray-900 dark:bg-gray-800 dark:text-white">
             <div class="flex items-center gap-4">
-                <svg class="w-8 h-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                    stroke-width="1.5" stroke="currentColor">
+                <svg class="w-8 h-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round"
                         d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
                 </svg>
@@ -150,6 +283,13 @@ new class extends Component {
         <div class="p-6 bg-white shadow-lg rounded-xl text-gray-900 dark:bg-gray-800 dark:text-white">
             <h3 class="text-xl font-bold text-blue-500 mt-6">Cash Flow</h3>
             <div class="mt-4 space-y-2 text-gray-700 dark:text-gray-300">
+                @foreach ($branchSales as $bs)
+                    <div class="flex justify-between">
+                        <span>{{ $bs['name'] }}:</span>
+                        <span class="font-semibold text-green-500">Php {{ number_format($bs['sales'], 2) }}</span>
+                    </div>
+                @endforeach
+                <hr>
                 <div class="flex justify-between">
                     <span>Money In:</span>
                     <span class="font-semibold text-green-500">Php {{ number_format($totalMoneyIn, 2) }}</span>
@@ -192,120 +332,227 @@ new class extends Component {
         </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-6 md:grid-cols-1" wire:ignore>
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-1">
         <!-- Sales Graph -->
         <div x-data="{
-            period: 'week',
-            salesChart: null,
-            weekLabels: $wire.salesData.map((_, index) => {
-                const date = new Date();
-                date.setDate(date.getDate() - (6 - index));
-                return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-            }),
-            monthLabels: Array.from({ length: 12 }, (_, i) => new Date(0, i).toLocaleString('default', { month: 'short' })),
-            yearLabels: Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 4 + i).toString(),
-            weekData: $wire.salesData,
-            monthData: [],
-            yearData: [],
+            activeTab: 'daily',
+            chart: null,
             init() {
-                this.fetchMonthData();
-                this.fetchYearData();
-                this.initSalesChart();
+                this.renderChart();
 
-                // Listen for Livewire updates
                 $wire.on('salesDataUpdated', () => {
-                    this.weekData = $wire.salesData;
-                    this.initSalesChart();
+                    this.renderChart();
                 });
             },
-            async fetchMonthData() {
-                const response = await $wire.getMonthlySalesData();
-                this.monthData = response;
-            },
-            async fetchYearData() {
-                const response = await $wire.getYearlySalesData();
-                this.yearData = response;
-            },
-            initSalesChart() {
-                if (this.salesChart) {
-                    this.salesChart.destroy();
+            renderChart() {
+                if (this.chart) {
+                    this.chart.destroy();
                 }
 
-                const isDarkMode = document.documentElement.classList.contains('dark');
-                const textColor = isDarkMode ? '#fff' : '#000';
-                const gridColor = isDarkMode ? '#374151' : '#e5e7eb';
+                const ctx = document.getElementById('salesAnalyticsChart').getContext('2d');
+                const isDark = document.documentElement.classList.contains('dark');
+                const textColor = isDark ? '#fff' : '#000';
+                const gridColor = isDark ? '#374151' : '#e5e7eb';
 
-                const ctx = document.getElementById('salesChart').getContext('2d');
-                this.salesChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: this.period === 'week' ? this.weekLabels : this.period === 'month' ? this.monthLabels : this.yearLabels,
-                        datasets: [{
-                            label: 'Sales',
-                            data: this.period === 'week' ? this.weekData : this.period === 'month' ? this.monthData : this.yearData,
-                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                            borderColor: 'rgba(75, 192, 192, 1)',
-                            borderWidth: 2
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: 'Sales Performance Overview',
-                                font: {
-                                    size: 16,
-                                    weight: 'bold'
+                if (this.activeTab === 'daily') {
+                    const labels = $wire.salesChartData.daily.map(item => item.date);
+                    this.chart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                    label: 'Cash',
+                                    data: $wire.salesChartData.daily.map(item => item.cash),
+                                    backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                                    borderColor: 'rgba(75, 192, 192, 1)',
+                                    borderWidth: 1
                                 },
-                                padding: {
-                                    top: 10,
-                                    bottom: 20
+                                {
+                                    label: 'COD',
+                                    data: $wire.salesChartData.daily.map(item => item.cod),
+                                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                                    borderColor: 'rgba(54, 162, 235, 1)',
+                                    borderWidth: 1
                                 },
-                                color: textColor
-                            },
-                            legend: {
-                                labels: {
-                                    color: textColor
+                                {
+                                    label: 'Sign',
+                                    data: $wire.salesChartData.daily.map(item => item.sign),
+                                    backgroundColor: 'rgba(153, 102, 255, 0.7)',
+                                    borderColor: 'rgba(153, 102, 255, 1)',
+                                    borderWidth: 1
+                                }
+                            ]
+                        },
+                        options: this.getChartOptions('Daily Sales Performance', textColor, gridColor)
+                    });
+                } else if (this.activeTab === 'monthly') {
+                    const labels = $wire.salesChartData.monthly.map(item => item.month);
+                    this.chart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Monthly Sales',
+                                data: $wire.salesChartData.monthly.map(item => item.total),
+                                fill: true,
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                tension: 0.3,
+                                borderWidth: 2
+                            }]
+                        },
+                        options: this.getChartOptions('Monthly Sales Trend', textColor, gridColor)
+                    });
+                } else {
+                    this.chart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Cash', 'COD', 'Sign'],
+                            datasets: [{
+                                data: [
+                                    $wire.salesChartData.methods.cash,
+                                    $wire.salesChartData.methods.cod,
+                                    $wire.salesChartData.methods.sign
+                                ],
+                                backgroundColor: [
+                                    'rgba(75, 192, 192, 0.7)',
+                                    'rgba(54, 162, 235, 0.7)',
+                                    'rgba(153, 102, 255, 0.7)'
+                                ],
+                                borderColor: isDark ? '#374151' : '#fff',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'right',
+                                    labels: {
+                                        color: textColor
+                                    }
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Payment Methods Breakdown',
+                                    color: textColor,
+                                    font: {
+                                        size: 16,
+                                        weight: 'bold'
+                                    }
                                 }
                             }
+                        }
+                    });
+                }
+            },
+            getChartOptions(title, textColor, gridColor) {
+                return {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: title,
+                            color: textColor,
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
                         },
-                        scales: {
-                            x: {
-                                ticks: {
-                                    color: textColor
-                                },
-                                grid: {
-                                    color: gridColor
+                        legend: {
+                            labels: {
+                                color: textColor
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ₱' + context.raw.toLocaleString('en-PH', {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                    });
                                 }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                color: gridColor
                             },
-                            y: {
-                                ticks: {
-                                    color: textColor
-                                },
-                                grid: {
-                                    color: gridColor
+                            ticks: {
+                                color: textColor
+                            }
+                        },
+                        y: {
+                            grid: {
+                                color: gridColor
+                            },
+                            ticks: {
+                                color: textColor,
+                                callback: function(value) {
+                                    return '₱' + value.toLocaleString('en-PH');
                                 }
                             }
                         }
                     }
-                });
+                };
             }
         }"
-            class="relative h-96 overflow-hidden rounded-xl border border-neutral-200 bg-white p-6 shadow-lg dark:border-neutral-700 dark:bg-gray-800">
-            <div class="mb-4 flex gap-2">
-                <button @click="period = 'week'; initSalesChart()"
-                    :class="{ 'bg-blue-500 text-white': period === 'week', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': period !== 'week' }"
-                    class="px-4 py-2 rounded-lg">Week</button>
-                <button @click="period = 'month'; fetchMonthData(); initSalesChart()"
-                    :class="{ 'bg-blue-500 text-white': period === 'month', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': period !== 'month' }"
-                    class="px-4 py-2 rounded-lg">Month</button>
-                <button @click="period = 'year'; fetchYearData(); initSalesChart()"
-                    :class="{ 'bg-blue-500 text-white': period === 'year', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': period !== 'year' }"
-                    class="px-4 py-2 rounded-lg">Year</button>
+            class="relative h-[32rem] overflow-hidden rounded-xl border border-neutral-200 bg-white p-6 shadow-lg dark:border-neutral-700 dark:bg-gray-800">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white">Sales Analytics</h2>
+                <div class="flex flex-wrap gap-2">
+                    <button @click="activeTab = 'daily'; renderChart()"
+                        :class="{ 'bg-blue-500 text-white': activeTab === 'daily', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': activeTab !== 'daily' }"
+                        class="px-4 py-2 rounded-lg text-sm">
+                        Daily
+                    </button>
+                    <button @click="activeTab = 'monthly'; renderChart()"
+                        :class="{ 'bg-blue-500 text-white': activeTab === 'monthly', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': activeTab !== 'monthly' }"
+                        class="px-4 py-2 rounded-lg text-sm">
+                        Monthly
+                    </button>
+                    <button @click="activeTab = 'methods'; renderChart()"
+                        :class="{ 'bg-blue-500 text-white': activeTab === 'methods', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300': activeTab !== 'methods' }"
+                        class="px-4 py-2 rounded-lg text-sm">
+                        Payment Methods
+                    </button>
+                </div>
             </div>
-            <canvas class="mb-12" id="salesChart"></canvas>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                    <p class="text-sm text-blue-600 dark:text-blue-300">Total Sales</p>
+                    <p class="text-2xl font-bold text-blue-600 dark:text-blue-200">
+                        ₱{{ number_format($salesChartData['total_sales'], 2) }}
+                    </p>
+                </div>
+                <div class="p-4 bg-green-50 dark:bg-green-900/30 rounded-lg">
+                    <p class="text-sm text-green-600 dark:text-green-300">Avg. Daily</p>
+                    <p class="text-2xl font-bold text-green-600 dark:text-green-200">
+                        ₱{{ number_format($salesChartData['average_daily'], 2) }}
+                    </p>
+                </div>
+                <div class="p-4 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                    <p class="text-sm text-purple-600 dark:text-purple-300">Cash Payments</p>
+                    <p class="text-2xl font-bold text-purple-600 dark:text-purple-200">
+                        ₱{{ number_format($salesChartData['methods']['cash'], 2) }}
+                    </p>
+                </div>
+                <div class="p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                    <p class="text-sm text-indigo-600 dark:text-indigo-300">COD Payments</p>
+                    <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-200">
+                        ₱{{ number_format($salesChartData['methods']['cod'], 2) }}
+                    </p>
+                </div>
+            </div>
+
+            <div class="h-80 w-full">
+                <canvas id="salesAnalyticsChart"></canvas>
+            </div>
         </div>
     </div>
 
@@ -375,13 +622,19 @@ new class extends Component {
         <div class="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-gray-800">
             <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Recently Added Products</h3>
             <div class="space-y-4">
-                @foreach (\App\Models\Product::latest()->take(5)->get() as $product)
+                @php
+                    $recentProductsQuery = \App\Models\Product::latest();
+                    $recentProducts = $recentProductsQuery->take(5)->get();
+                @endphp
+
+                @foreach ($recentProducts as $product)
                     <div
                         class="flex justify-between items-center text-gray-700 dark:text-gray-300 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition">
                         <div class="flex items-center gap-3">
                             <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600 dark:text-blue-300"
-                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                    class="h-6 w-6 text-blue-600 dark:text-blue-300" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                                 </svg>

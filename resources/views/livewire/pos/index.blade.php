@@ -30,6 +30,7 @@ new class extends Component {
     public $notes;
     public $receiptNumber;
     public $total;
+    public $date;
 
     public function confirmDelete($quotationId)
     {
@@ -62,6 +63,7 @@ new class extends Component {
         $this->server = $order->assisted_by;
         $this->notes = $order->notes;
         $this->receiptNumber = $order->order_number;
+        $this->date = $order->created_at;
 
         foreach ($order->order_items as $item) {
             $this->cart[$item->product_id] = [
@@ -284,61 +286,41 @@ new class extends Component {
             <div class="bg-white dark:bg-gray-800 p-8 rounded-lg w-[13cm]" id="printable-receipt">
                 <!-- Receipt Header -->
                 {{-- <div class="text-center mb-4">
-                    <h2 class="text-xl font-bold dark:text-white">Company Name</h2>
-                    <p class="text-sm dark:text-gray-300">123 Business Street</p>
-                    <p class="text-sm dark:text-gray-300">Phone: (123) 456-7890</p>
-                    <p class="text-sm dark:text-gray-300">Receipt #: {{ $this->receiptNumber }}</p>
-                    <p class="text-sm dark:text-gray-300">Date: {{ now()->format('M d, Y') }}</p>
-                </div> --}}
+                <h2 class="text-xl font-bold dark:text-white">Company Name</h2>
+                <p class="text-sm dark:text-gray-300">123 Business Street</p>
+                <p class="text-sm dark:text-gray-300">Phone: (123) 456-7890</p>
+                <p class="text-sm dark:text-gray-300">Receipt #: {{ $this->receiptNumber }}</p>
+                <p class="text-sm dark:text-gray-300">Date: {{ now()->format('M d, Y') }}</p>
+            </div> --}}
                 <br>
                 <br>
                 <br>
 
                 <!-- Header -->
                 <div class="mb-4">
-                    <table class="text-sm border-gray-200">
-                        <tr>
-                            <td width="15%" class="dark:text-gray-300">&nbsp;</td>
-                            <td width="35%" class="dark:text-gray-300">&nbsp;</td>
-                            <td width="35%" class="dark:text-gray-300">&nbsp;</td>
-                            <td width="20%" class="dark:text-gray-300 text-right">{{ now()->format('M d, Y') }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td width="15%" class="dark:text-gray-300"></td>
-                            <td width="35%"class="dark:text-gray-300">
-                                {{ Customer::find($customerSelected)->name ?? '-----' }}
-                            </td>
-                            <td class="dark:text-gray-300">&nbsp;</td>
-                            <td class="dark:text-gray-300">&nbsp;</td>
+                    <div class="flex justify-end">
+                        <small>{{ $date->format('m/d/Y H:i') }}</small>
+                    </div>
+                    <div class="flex justify-start">
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <small>{{ Customer::find($customerSelected)?->name ?? '-----' }}</small>
+                    </div>
+                    <div class="flex justify-start">
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <small>{{ Customer::find($customerSelected)?->address ?? '-----' }}</small>
+                    </div>
+                    <div class="flex justify-start">
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        <small>{{ Customer::find($customerSelected)?->phone ?? '-----' }}</small>
+                    </div>
 
-                        </tr>
-                        <tr>
-                            <td width="15%" class="dark:text-gray-300"></td>
-                            <td width="75%" class="dark:text-gray-300">
-                                <small>{{ Customer::find($customerSelected)->address ?? '' }}</small>
-                            </td>
-                            <td class="dark:text-gray-300">&nbsp;</td>
-                            <td class="dark:text-gray-300">&nbsp;</td>
-                        </tr>
-                        <tr>
-                            <td width="15%" class="dark:text-gray-300"></td>
-                            <td width="35%"class="dark:text-gray-300">
-                                {{ Customer::find($customerSelected)->phone ?? '-----' }}</td>
-                            <td width="15%" class="dark:text-gray-300"></td>
-                            <td width="35%"class="dark:text-gray-300">
-                                <small>Cashier:{{ Auth::user()->name ?? '-----' }}</small>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td width="15%" class="dark:text-gray-300"></td>
-                            <td width="35%"class="dark:text-gray-300"></td>
-                            <td width="15%" class="dark:text-gray-300"></td>
-                            <td width="35%"class="dark:text-gray-300">
-                                <small>Server:{{ User::find($server)->name ?? '-----' }}</small>
-                            </td>
-                        </tr>
-                    </table>
+                    <div class="flex justify-end">
+                        <small>Cashier: {{ Auth::user()?->name ?? '-----' }}</small>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <small>Server: {{ User::find($server)?->name ?? '-----' }}</small>
+                    </div>
                 </div>
                 <br>
 
@@ -349,21 +331,23 @@ new class extends Component {
                             <tr>
                                 <th class="text-right dark:text-gray-300"></th>
                                 <th class="text-left dark:text-gray-300"></th>
-                                <th class="text-center dark:text-gray-300">Product Name</th>
-                                <th class="text-right dark:text-gray-300">Unit Price</th>
-                                <th class="text-right dark:text-gray-300">Amount</th>
+                                <th class="text-center dark:text-gray-300"><small>Product Name</small></th>
+                                <th class="text-right dark:text-gray-300"><small>Unit Price</small></th>
+                                <th class="text-right dark:text-gray-300"><small>Amount</small></th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach ($cart as $item)
                                 <tr>
-                                    <td class="text-center dark:text-gray-300">{{ $item['quantity'] }}</td>
-                                    <td class="text-center dark:text-gray-300">{{ $item['unit'] }}</td>
+                                    <td class="text-center dark:text-gray-300"><small>{{ $item['quantity'] }}</small>
+                                    </td>
+                                    <td class="text-center dark:text-gray-300"><small>{{ $item['unit'] }}</small></td>
                                     <td class="text-center dark:text-gray-300"><small>{{ $item['name'] }}</small></td>
-                                    <td class="text-right dark:text-gray-300">₱{{ number_format($item['price'], 2) }}
+                                    <td class="text-right dark:text-gray-300">
+                                        <small>₱{{ number_format($item['price'], 2) }}</small>
                                     </td>
                                     <td class="text-right dark:text-gray-300">
-                                        ₱{{ number_format($item['price'] * $item['quantity'], 2) }}
+                                        <small>₱{{ number_format($item['price'] * $item['quantity'], 2) }}</small>
                                     </td>
                                 </tr>
                             @endforeach
@@ -387,14 +371,6 @@ new class extends Component {
                         </small>
 
                     </div>
-                    <div class="flex justify-end font-bold">
-                        <small>
-                            <span class="mr-4 dark:text-gray-300">Net Price:</span>
-                            <span
-                                class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount, 2) }}</span>
-                        </small>
-
-                    </div>
                     <div class="flex justify-end text-sm">
                         <small>
                             <span class="mr-4 dark:text-gray-300">Discount <i>(less)</i>:</span>
@@ -403,9 +379,12 @@ new class extends Component {
 
                     </div>
                     <div class="flex justify-end font-bold">
-                        <span class="mr-4 dark:text-gray-300">Total Amount Due:</span>
-                        <span
-                            class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount, 2) }}</span>
+                        <small>
+                            <span class="mr-4 dark:text-gray-300">Total Amount Due:</span>
+                            <span
+                                class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount, 2) }}</span>
+                        </small>
+
                     </div>
                 </div>
 

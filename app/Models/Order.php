@@ -50,6 +50,6 @@ class Order extends Model
      */
     public function server(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'assisted_by', 'id');
+        return $this->belongsTo(Employee::class, 'assisted_by', 'id');
     }
 }

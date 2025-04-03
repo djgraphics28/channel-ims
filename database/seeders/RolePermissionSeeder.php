@@ -70,6 +70,11 @@ class RolePermissionSeeder extends Seeder
             'cashflow.create',
             'cashflow.edit',
             'cashflow.delete',
+
+            'employees.view',
+            'employees.create',
+            'employees.edit',
+            'employees.delete',
         ];
 
         foreach ($permissions as $permission) {

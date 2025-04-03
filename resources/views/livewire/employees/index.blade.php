@@ -2,56 +2,70 @@
 
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
-use App\Models\CashFlow;
+use App\Models\Employee;
 use Livewire\Attributes\Title;
-use Livewire\Attributes\Url;
 
 new class extends Component {
     use WithPagination;
 
     public $search = '';
     public $showModal = false;
-    public $cashflow;
+    public $employee;
     public $isEditing = false;
     public $confirmingDelete = false;
-    public $cashflowToDelete;
-    #[Url]
-    public $isActiveTab = 'in';
+    public $employeeToDelete;
+    public $pageRows = 10;
 
-    // Form fields
-    public $description = '';
-    public $amount = '';
-    public $type = 'in';
-    public $remarks = '';
+    public $first_name = '';
+    public $middle_name = '';
+    public $last_name = '';
+    public $suffix = '';
+    public $email = '';
+    public $phone = '';
+    public $address = '';
+    public $salary = '';
+    public $hire_date = '';
+    public $birth_date = '';
+    public $position = '';
 
-    protected $rules = [
-        'description' => 'required|string|max:255',
-        'amount' => 'required|numeric|min:0.01',
-        'type' => 'required|in:in,out',
-        'remarks' => 'nullable|string',
-    ];
-
-    public function setActiveTab($tab)
+    public function rules()
     {
-        $this->isActiveTab = $tab;
-        $this->resetPage();
+        return [
+            'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'suffix' => 'nullable|string|max:10',
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:20',
+            'address' => 'nullable|string',
+            'salary' => 'nullable|numeric',
+            'hire_date' => 'nullable|date',
+            'birth_date' => 'nullable|date',
+            'position' => 'nullable',
+        ];
     }
 
     public function create()
     {
         $this->resetForm();
         $this->isEditing = false;
-        $this->type = $this->isActiveTab;
         $this->showModal = true;
     }
 
-    public function edit(CashFlow $cashflow)
+    public function edit(Employee $employee)
     {
-        $this->cashflow = $cashflow;
+        $this->employee = $employee;
+        $this->first_name = $employee->first_name;
+        $this->middle_name = $employee->middle_name;
+        $this->last_name = $employee->last_name;
+        $this->suffix = $employee->suffix;
+        $this->email = $employee->email;
+        $this->phone = $employee->phone;
+        $this->address = $employee->address;
+        $this->salary = $employee->salary;
+        $this->hire_date = $employee->hire_date;
+        $this->birth_date = $employee->birth_date;
         $this->isEditing = true;
-        $this->description = $cashflow->description;
-        $this->amount = $cashflow->amount;
-        $this->remarks = $cashflow->remarks;
         $this->showModal = true;
     }
 
@@ -60,65 +74,87 @@ new class extends Component {
         $this->validate();
 
         $data = [
-            'description' => $this->description,
-            'amount' => $this->amount,
-            'type' => $this->isActiveTab,
-            'remarks' => $this->remarks,
-            'created_by' => auth()->id(),
+            'first_name' => $this->first_name,
+            'middle_name' => $this->middle_name,
+            'last_name' => $this->last_name,
+            'suffix' => $this->suffix,
+            'email' => $this->email,
+            'phone' => $this->phone,
+            'address' => $this->address,
+            'salary' => $this->salary,
+            'hire_date' => $this->hire_date,
+            'birth_date' => $this->birth_date,
+            'position' => $this->position,
         ];
-        if (!$this->isEditing) {
-            $data['branch_id'] = auth()->user()->branch_id;
-        }
 
         if ($this->isEditing) {
-            $this->cashflow->update($data);
-
-            flash()->success('CashFlow updated successfully!');
+            $this->employee->update($data);
+            flash()->success('Employee updated successfully!');
         } else {
-            CashFlow::create($data);
-            flash()->success('CashFlow created successfully!');
+            Employee::create($data);
+            flash()->success('Employee created successfully!');
+            $this->dispatch('notify', 'Employee created successfully!', 'success');
         }
 
         $this->showModal = false;
         $this->resetForm();
     }
 
-    public function confirmDelete($cashflowId)
+    public function confirmDelete($employeeId)
     {
-        $this->cashflowToDelete = $cashflowId;
+        $this->employeeToDelete = $employeeId;
         $this->confirmingDelete = true;
     }
 
     public function delete()
     {
-        $cashflow = CashFlow::find($this->cashflowToDelete);
-        if ($cashflow) {
-            $cashflow->delete();
-            flash()->success('CashFlow deleted successfully!');
+        $employee = Employee::find($this->employeeToDelete);
+        if ($employee) {
+            $employee->delete();
+            $this->dispatch('notify', 'Employee deleted successfully!', 'success');
         }
+
         $this->confirmingDelete = false;
-        $this->cashflowToDelete = null;
+        $this->employeeToDelete = null;
+    }
+
+    public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingPageRows()
+    {
+        $this->resetPage();
     }
 
     private function resetForm()
     {
-        $this->reset(['description', 'amount', 'remarks']);
-        $this->cashflow = null;
+        $this->first_name = '';
+        $this->middle_name = '';
+        $this->last_name = '';
+        $this->suffix = '';
+        $this->email = '';
+        $this->phone = '';
+        $this->address = '';
+        $this->salary = '';
+        $this->hire_date = '';
+        $this->birth_date = '';
+        $this->employee = null;
     }
 
-    #[Title('CashFlow')]
+    #[Title('Employees')]
     public function with(): array
     {
         return [
-            'cashflows' => CashFlow::query()
-                ->where('type', $this->isActiveTab)
-                ->where('description', 'like', '%' . $this->search . '%')
-                ->paginate(10),
+            'employees' => Employee::query()
+                ->where('last_name', 'like', '%' . $this->search . '%')
+                ->orWhere('first_name', 'like', '%' . $this->search . '%')
+                ->paginate($this->pageRows),
         ];
     }
-};
+}; ?>
 
-?>
 
 <div>
     <div class="mb-4">
@@ -137,7 +173,7 @@ new class extends Component {
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="m1 9 4-4-4-4" />
                         </svg>
-                        <span class="ml-1 text-sm font-medium text-gray-500 dark:text-gray-400 md:ml-2">CashFlow</span>
+                        <span class="ml-1 text-sm font-medium text-gray-500 dark:text-gray-400 md:ml-2">Employees</span>
                     </div>
                 </li>
             </ol>
@@ -145,37 +181,25 @@ new class extends Component {
     </div>
 
     <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
-        <div class="flex space-x-4 mb-4">
-            <flux:button wire:click="setActiveTab('in')" :variant="$isActiveTab === 'in' ? 'filled' : 'subtle'"
-                class="flex items-center space-x-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd"
-                        d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                        clip-rule="evenodd" />
-                </svg>
-                <span>Money In</span>
-            </flux:button>
-
-            <flux:button wire:click="setActiveTab('out')" :variant="$isActiveTab === 'out' ? 'filled' : 'subtle'"
-                class="flex items-center space-x-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-                        clip-rule="evenodd" />
-                </svg>
-                <span>Money Out</span>
-            </flux:button>
-        </div>
         <div class="flex items-center justify-between">
             <div class="w-1/3">
-                <input wire:model.live="search" type="search" placeholder="Search CashFlows..."
+                <input wire:model.live="search" type="search" placeholder="Search employees..."
                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
             </div>
+            <div class="flex items-center space-x-2">
+                <select wire:model.live="pageRows"
+                    class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                    <option value="10">10 per page</option>
+                    <option value="25">25 per page</option>
+                    <option value="50">50 per page</option>
+                    <option value="100">100 per page</option>
+                </select>
+            </div>
         </div>
-
-        @if ($cashflows->isEmpty())
+        @if ($employees->isEmpty())
             <div class="flex flex-col items-center justify-center p-8">
-                <p class="mb-4 text-gray-500 dark:text-gray-400">No CashFlows found</p>
-                @can('cashflow.create')
+                <p class="mb-4 text-gray-500 dark:text-gray-400">No employees found</p>
+                @can('employees.create')
                     <button wire:click="create"
                         class="inline-flex items-center justify-center rounded-lg bg-green-600 px-6 py-3 text-sm font-medium text-white transition-all duration-200 ease-in-out hover:bg-green-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 active:bg-green-800 dark:bg-green-500 dark:hover:bg-green-600 dark:focus:ring-green-400">
                         <svg xmlns="http://www.w3.org/2000/svg" class="my-auto mr-2 h-5 w-5" viewBox="0 0 20 20"
@@ -184,16 +208,16 @@ new class extends Component {
                                 d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
                                 clip-rule="evenodd" />
                         </svg>
-                        Add CashFlow
+                        Add Employee
                     </button>
                 @endcan
             </div>
         @else
             <div class="flex justify-end">
-                @can('cashflow.create')
+                @can('employees.create')
                     <button wire:click="create"
                         class="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 dark:bg-green-500 dark:hover:bg-green-600">
-                        Add CashFlow
+                        Add Employee
                     </button>
                 @endcan
             </div>
@@ -204,86 +228,54 @@ new class extends Component {
                         <tr>
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Description
-                            </th>
+                                Name</th>
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Amount
-                            </th>
+                                Email</th>
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Type
-                            </th>
+                                Phone</th>
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Remarks
-                            </th>
+                                Position</th>
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Created By
-                            </th>
+                                Salary</th>
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Created At
-                            </th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Actions
-                            </th>
+                                Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-                        @foreach ($cashflows as $cashflow)
+                        @foreach ($employees as $employee)
                             <tr class="dark:hover:bg-gray-800">
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ $cashflow->description }}
+                                    {{ $employee->first_name }} {{ $employee->middle_name }} {{ $employee->last_name }}
+                                    {{ $employee->suffix }}
                                 </td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ number_format($cashflow->amount, 2) }}
-                                </td>
-                                <td class="whitespace-nowrap px-6 py-4">
-                                    @if ($cashflow->type === 'in')
-                                        <span
-                                            class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
-                                            Money In
-                                        </span>
-                                    @else
-                                        <span
-                                            class="inline-flex items-center rounded-full bg-red-100 dark:bg-red-900 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:text-red-300">
-                                            Money Out
-                                        </span>
-                                    @endif
-                                </td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ $cashflow->remarks }}
-                                </td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ $cashflow->creator->name }}
-                                </td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ $cashflow->created_at }}
-                                </td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $employee->email }}</td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $employee->phone }}</td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $employee->position }}</td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $employee->salary }}</td>
                                 <td class="whitespace-nowrap px-6 py-4 space-x-2">
-                                    @can('cashflow.edit')
-                                        <button wire:click="edit({{ $cashflow->id }})"
-                                            class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
-                                            Edit
-                                        </button>
+                                    @can('employees.edit')
+                                        <button wire:click="edit({{ $employee->id }})"
+                                            class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">Edit</button>
                                     @endcan
-                                    @can('cashflow.delete')
-                                        <button wire:click="confirmDelete({{ $cashflow->id }})"
-                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
-                                            Delete
-                                        </button>
+                                    @can('employees.delete')
+                                        <button wire:click="confirmDelete({{ $employee->id }})"
+                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Delete</button>
                                     @endcan
+
                                 </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
+
             <div class="mt-4">
-                {{ $cashflows->links() }}
+                {{ $employees->links() }}
             </div>
         @endif
     </div>
@@ -298,43 +290,80 @@ new class extends Component {
                     class="inline-block transform overflow-hidden rounded-lg bg-white dark:bg-gray-900 text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
                     <form wire:submit="save">
                         <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100 mb-4">
-                                {{ $isEditing ? 'Edit ' : 'Add ' }}
-                                {{ $isActiveTab == 'in' ? 'Money In' : 'Money Out' }}
-                            </h3>
-
                             <div class="mb-4">
-                                <label for="description"
-                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Description
-                                </label>
-                                <input wire:model="description" type="text" id="description" required
-                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
-                                @error('description')
+                                <flux:input wire:model="first_name" :label="__('First Name')" type="text" required
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('first_name')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
-
                             <div class="mb-4">
-                                <label for="amount"
-                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Amount
-                                </label>
-                                <input wire:model="amount" type="number" step="0.01" id="amount" required
-                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
-                                @error('amount')
+                                <flux:input wire:model="middle_name" :label="__('Middle Name')" type="text"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('middle_name')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
-
                             <div class="mb-4">
-                                <label for="remarks"
-                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Remarks
-                                </label>
-                                <textarea wire:model="remarks" id="remarks" rows="3"
-                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600"></textarea>
-                                @error('remarks')
+                                <flux:input wire:model="last_name" :label="__('Last Name')" type="text" required
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('last_name')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="suffix" :label="__('Suffix')" type="text"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('suffix')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="email" :label="__('Email')" type="email"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('email')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="phone" :label="__('Phone')" type="text"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('phone')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="address" :label="__('Address')" type="text"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('address')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="position" :label="__('Position')" type="text" required
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('position')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="salary" :label="__('Salary')" type="number" required
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('salary')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="hire_date" :label="__('Date Hired')" type="date" required
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('hire_date')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:input wire:model="birth_date" :label="__('Birth Date')" type="date" required
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
+                                @error('birth_date')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
@@ -355,6 +384,17 @@ new class extends Component {
         </div>
     @endif
 
+    <div x-data="{ show: false, message: '', type: '' }" x-show="show" x-transition x-init="Livewire.on('notify', (msg, type) => {
+        message = msg;
+        type = type;
+        show = true;
+        setTimeout(() => show = false, 3000);
+    })"
+        class="fixed top-5 right-5 px-4 py-2 rounded-lg shadow-md text-white"
+        :class="type === 'success' ? 'bg-green-500' : 'bg-red-500'">
+        <span x-text="message"></span>
+    </div>
+
     @if ($confirmingDelete)
         <div class="fixed inset-0 z-10 overflow-y-auto">
             <div class="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -367,11 +407,11 @@ new class extends Component {
                         <div class="sm:flex sm:items-start">
                             <div class="mt-3 text-center sm:mt-0 sm:text-left">
                                 <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100">
-                                    Delete CashFlow
+                                    Delete Employee
                                 </h3>
                                 <div class="mt-2">
                                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        Are you sure you want to delete this CashFlow? This action cannot be undone.
+                                        Are you sure you want to delete this employee? This action cannot be undone.
                                     </p>
                                 </div>
                             </div>

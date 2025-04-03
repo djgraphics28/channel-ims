@@ -3,6 +3,7 @@
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 use App\Models\User;
+use App\Models\Branch;
 use Livewire\Attributes\Title;
 use Spatie\Permission\Models\Role;
 
@@ -17,24 +18,25 @@ new class extends Component {
     public $userToDelete;
     public $roles = [];
     public $selectedRoles = [];
-
-    public $form = [
-        'name' => '',
-        'email' => '',
-        'password' => '',
-    ];
+    public $branches = [];
+    public $branch;
+    public $name;
+    public $email;
+    public $password;
 
     public function mount()
     {
         $this->roles = Role::all();
+        $this->branches = Branch::all();
     }
 
     public function rules()
     {
         return [
-            'form.name' => 'required|string|max:255',
-            'form.email' => $this->isEditing ? 'required|email|unique:users,email,' . $this->user->id : 'required|email|unique:users,email',
-            'form.password' => $this->isEditing ? '' : 'required|min:8',
+            'name' => 'required|string|max:255',
+            'branch' => 'required',
+            'email' => $this->isEditing ? 'required|email|unique:users,email,' . $this->user->id : 'required|email|unique:users,email',
+            'password' => $this->isEditing ? '' : 'required|min:8',
             'selectedRoles' => 'array',
         ];
     }
@@ -50,7 +52,9 @@ new class extends Component {
     public function edit(User $user)
     {
         $this->user = $user;
-        $this->form = $user->only(['name', 'email']);
+        $this->name = $user->name;
+        $this->branch = $user->branch_id;
+        $this->email = $user->email;
         $this->selectedRoles = $user->roles->pluck('id')->toArray();
         $this->isEditing = true;
         $this->showModal = true;
@@ -63,12 +67,22 @@ new class extends Component {
         // Convert all role IDs to integers
         $this->selectedRoles = array_map('intval', $this->selectedRoles);
 
+        $formData = [
+            'name' => $this->name,
+            'email' => $this->email,
+            'branch_id' => $this->branch,
+        ];
+
+        if (!$this->isEditing) {
+            $formData['password'] = bcrypt($this->password);
+        }
+
         if ($this->isEditing) {
-            $this->user->update($this->form);
+            $this->user->update($formData);
             $this->user->syncRoles($this->selectedRoles);
             flash()->success('User updated successfully!');
         } else {
-            $user = User::create($this->form);
+            $user = User::create($formData);
             $user->assignRole($this->selectedRoles);
             flash()->success('User created successfully!');
         }
@@ -76,7 +90,6 @@ new class extends Component {
         $this->showModal = false;
         $this->resetForm();
     }
-
     public function confirmDelete($userId)
     {
         $this->userToDelete = $userId;
@@ -110,8 +123,7 @@ new class extends Component {
     public function with(): array
     {
         return [
-            'users' => User::query()
-                ->with('roles')
+            'users' => User::with(['roles','branch'])
                 ->where('name', 'like', '%' . $this->search . '%')
                 ->paginate(10),
         ];
@@ -187,6 +199,9 @@ new class extends Component {
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Roles</th>
                             <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Branch</th>
+                            <th
                                 class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Status</th>
                             <th
@@ -208,6 +223,8 @@ new class extends Component {
                                     @endforeach
                                     {{-- {{ $user->roles->pluck('name')->implode(', ') }} --}}
                                 </td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $user->branch->name ?? '' }}</td>
+
                                 <td class="text-center">
                                     {{-- <livewire:widget.active-status-change model="User" modelId="1" /> --}}
                                     @livewire('widget.active-status-change', ['model' => $user, 'field' => 'is_active'], key($user->id))
@@ -241,25 +258,25 @@ new class extends Component {
                         <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
 
                             <div class="mb-4">
-                                <flux:input wire:model="form.name" :label="__('Name')" type="text"
+                                <flux:input wire:model="name" :label="__('Name')" type="text"
                                     class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.name')
-                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
-                                @enderror
                             </div>
                             <div class="mb-4">
-                                <flux:input wire:model="form.email" :label="__('Email')" type="email"
+                                <flux:input wire:model="email" :label="__('Email')" type="email"
                                     class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.email')
-                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
-                                @enderror
                             </div>
                             <div class="mb-4">
-                                <flux:input wire:model="form.password" :label="__('Password')" type="password"
+                                <flux:input wire:model="password" :label="__('Password')" type="password"
                                     class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                                @error('form.password')
-                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
-                                @enderror
+                            </div>
+                            <div class="mb-4">
+                                <flux:select wire:model="branch" :label="__('Branch')"
+                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600">
+                                    <option value="">Select</option>
+                                    @foreach ($branches as $item)
+                                        <option value="{{ $item->id }}">{{ $item->name }}</option>
+                                    @endforeach
+                                </flux:select>
                             </div>
                             <div class="mb-4">
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Roles</label>

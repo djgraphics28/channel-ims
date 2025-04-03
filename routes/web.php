@@ -30,6 +30,7 @@ Route::middleware(['auth','check.active'])->group(function () {
     Volt::route('pos', 'pos.create')->name('pos');
     Volt::route('pos/{orderId}', 'pos.edit')->name('pos.edit');
     Volt::route('cashflows', 'cashflow.index')->name('cashflows');
+    Volt::route('employees', 'employees.index')->name('employees');
 
 });
 
