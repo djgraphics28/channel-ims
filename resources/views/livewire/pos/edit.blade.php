@@ -47,6 +47,7 @@ new class extends Component {
     public $phone;
     public $address;
     public $birth_date;
+    public $date;
 
     public function mount($orderId)
     {
@@ -61,6 +62,7 @@ new class extends Component {
         $this->server = $order->assisted_by;
         $this->notes = $order->notes;
         $this->receiptNumber = $order->order_number;
+        $this->date = $order->created_at;
 
         foreach ($order->order_items as $item) {
             $this->cart[$item->product_id] = [
@@ -431,7 +433,7 @@ new class extends Component {
                                     @foreach ($filteredCustomers as $customer)
                                         <div wire:click="selectCustomer({{ $customer->id }})"
                                             class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-gray-300">
-                                            {{ $customer->name }}
+                                            {{ $customer->name }} | {{ $customer->address }}
                                         </div>
                                     @endforeach
                                 </div>
@@ -602,7 +604,7 @@ new class extends Component {
                             <td width="15%" class="dark:text-gray-300">&nbsp;</td>
                             <td width="35%" class="dark:text-gray-300">&nbsp;</td>
                             <td width="35%" class="dark:text-gray-300">&nbsp;</td>
-                            <td width="20%" class="dark:text-gray-300 text-right">{{ now()->format('M d, Y') }}
+                            <td width="20%" class="dark:text-gray-300 text-right">{{ $date->format('M d, Y') }}
                             </td>
                         </tr>
                         <tr>

@@ -391,7 +391,7 @@ new class extends Component {
                                         @foreach ($filteredCustomers as $customer)
                                             <div wire:click="selectCustomer({{ $customer->id }})"
                                                 class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-gray-300">
-                                                {{ $customer->name }}
+                                                {{ $customer->name }} | {{ $customer->address }}
                                             </div>
                                         @endforeach
                                     </div>
