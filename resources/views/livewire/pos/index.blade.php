@@ -390,7 +390,9 @@ new class extends Component {
                 {{-- general notes --}}
                 <div class="space-y-1 mb-4 text-left">
                     <div class="flex justify-start text-sm">
-                        <span class="mr-4 dark:text-gray-300">General Notes:</span><br>
+                        <span class="mr-4 dark:text-gray-300">General Notes:</span>
+                    </div>
+                    <div class="flex justify-start text-sm">
                         <span class="dark:text-gray-300"><small>{{ $notes }}</small></span>
                     </div>
                     <br>
