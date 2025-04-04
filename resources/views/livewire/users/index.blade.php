@@ -230,10 +230,15 @@ new class extends Component {
                                     @livewire('widget.active-status-change', ['model' => $user, 'field' => 'is_active'], key($user->id))
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 space-x-2">
-                                    <button wire:click="edit({{ $user->id }})"
-                                        class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">Edit</button>
-                                    <button wire:click="confirmDelete({{ $user->id }})"
-                                        class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Delete</button>
+                                    @can('users.edit')
+                                        <button wire:click="edit({{ $user->id }})"
+                                            class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">Edit</button>
+
+                                    @endcan
+                                    @can('users.delete')
+                                        <button wire:click="confirmDelete({{ $user->id }})"
+                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Delete</button>
+                                    @endcan
                                 </td>
                             </tr>
                         @endforeach
