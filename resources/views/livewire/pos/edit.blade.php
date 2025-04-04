@@ -601,7 +601,7 @@ new class extends Component {
                 <br>
 
                 <!-- Header -->
-                <div class="mb-4">
+                <div class="mb-2">
                     <div class="flex justify-end">
                         <small>{{ $date->format('m/d/Y H:i') }}</small>
                     </div>
@@ -626,7 +626,6 @@ new class extends Component {
                         <small>Server: {{ User::find($server)?->name ?? '-----' }}</small>
                     </div>
                 </div>
-                <br>
 
                 <!-- Items -->
                 <div class="border-t border-b border-gray-200 dark:border-gray-700 py-2 mb-4">

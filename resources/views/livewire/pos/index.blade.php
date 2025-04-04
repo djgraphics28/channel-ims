@@ -286,18 +286,18 @@ new class extends Component {
             <div class="bg-white dark:bg-gray-800 p-8 rounded-lg w-[13cm]" id="printable-receipt">
                 <!-- Receipt Header -->
                 {{-- <div class="text-center mb-4">
-                <h2 class="text-xl font-bold dark:text-white">Company Name</h2>
-                <p class="text-sm dark:text-gray-300">123 Business Street</p>
-                <p class="text-sm dark:text-gray-300">Phone: (123) 456-7890</p>
-                <p class="text-sm dark:text-gray-300">Receipt #: {{ $this->receiptNumber }}</p>
-                <p class="text-sm dark:text-gray-300">Date: {{ now()->format('M d, Y') }}</p>
-            </div> --}}
+             <h2 class="text-xl font-bold dark:text-white">Company Name</h2>
+             <p class="text-sm dark:text-gray-300">123 Business Street</p>
+             <p class="text-sm dark:text-gray-300">Phone: (123) 456-7890</p>
+             <p class="text-sm dark:text-gray-300">Receipt #: {{ $this->receiptNumber }}</p>
+             <p class="text-sm dark:text-gray-300">Date: {{ now()->format('M d, Y') }}</p>
+         </div> --}}
                 <br>
                 <br>
                 <br>
 
                 <!-- Header -->
-                <div class="mb-4">
+                <div class="mb-2">
                     <div class="flex justify-end">
                         <small>{{ $date->format('m/d/Y H:i') }}</small>
                     </div>
@@ -322,7 +322,6 @@ new class extends Component {
                         <small>Server: {{ User::find($server)?->name ?? '-----' }}</small>
                     </div>
                 </div>
-                <br>
 
                 <!-- Items -->
                 <div class="border-t border-b border-gray-200 dark:border-gray-700 py-2 mb-4">
