@@ -49,6 +49,7 @@ new class extends Component {
     public $address;
     public $birth_date;
     public $date;
+    public $partialPaymentAmount;
 
     public function mount($orderId)
     {
@@ -64,6 +65,7 @@ new class extends Component {
         $this->notes = $order->notes;
         $this->receiptNumber = $order->order_number;
         $this->date = $order->created_at;
+        $this->partialPaymentAmount = $order->payment->amount_paid;
 
         foreach ($order->order_items as $item) {
             $this->cart[$item->product_id] = [
@@ -87,6 +89,7 @@ new class extends Component {
             'paymentScheme' => 'required',
             'paymentStatus' => 'required',
             'paymentMethod' => 'required',
+            'partialPaymentAmount' => 'required_if:paymentScheme,partial-payment|numeric|min:0',
             // 'server' => 'required',
         ];
     }
@@ -120,13 +123,13 @@ new class extends Component {
     {
         $product = Product::find($productId);
 
-        if (!$product || $product->stock < 1) {
+        if (!$product || ($product->product_stock->stock ?? 0) < 1) {
             $this->dispatch('notify', 'Product out of stock!', 'error');
             return;
         }
 
         if (isset($this->cart[$productId])) {
-            if ($this->cart[$productId]['quantity'] >= $product->stock) {
+            if ($this->cart[$productId]['quantity'] >= $product->product_stock->stock) {
                 $this->dispatch('notify', 'Maximum stock reached!', 'error');
                 return;
             }
@@ -155,7 +158,7 @@ new class extends Component {
     {
         $product = Product::find($productId);
 
-        if ($change > 0 && $this->cart[$productId]['quantity'] >= $product->stock) {
+        if ($change > 0 && $this->cart[$productId]['quantity'] >= $product->product_stock->stock) {
             $this->dispatch('notify', 'Maximum stock reached!', 'error');
             return;
         }
@@ -216,7 +219,7 @@ new class extends Component {
         $order->payment()->updateOrCreate(
             ['order_id' => $order->id],
             [
-                'amount_paid' => $this->total + ($this->total * $this->tax) / 100 - $this->discount,
+                'amount_paid' => $this->paymentScheme == 'partial-payment' ? $this->partialPaymentAmount : $this->total + $this->total * ($this->tax / 100) - $this->discount,
                 'payment_method' => $this->paymentMethod,
                 'payment_scheme' => $this->paymentScheme,
                 'payment_status' => $this->paymentStatus,
@@ -231,8 +234,9 @@ new class extends Component {
         if ($oldOrder) {
             foreach ($oldOrder->order_items as $item) {
                 $product = Product::find($item->product_id);
-                if ($product) {
-                    $product->increment('stock', $item->quantity);
+
+                if ($product && $product->product_stock) {
+                    $product->product_stock->increment('stock', $item->quantity);
                 }
             }
         }
@@ -244,7 +248,7 @@ new class extends Component {
         foreach ($this->cart as $productId => $item) {
             $product = Product::find($productId);
             if ($product) {
-                $product->decrement('stock', $item['quantity']);
+                $product->product_stock->decrement('stock', $item['quantity']);
 
                 $order->order_items()->updateOrCreate(
                     [
@@ -377,7 +381,7 @@ new class extends Component {
                                 </span>
                                 <span
                                     class="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-2.5 py-0.5 text-sm font-medium text-gray-800 dark:text-gray-100">
-                                    Stock: {{ $product->stock }}
+                                    Stock: {{ $product->product_stock->stock ?? 0 }}
                                 </span>
                             </div>
                             <div
@@ -468,8 +472,13 @@ new class extends Component {
                                             <div class="flex items-center justify-end gap-2">
                                                 <button wire:click="updateQuantity({{ $productId }}, -1)"
                                                     class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">-</button>
-                                                <span class="dark:text-gray-300">{{ $item['quantity'] }}</span>
-                                                <button wire:click="updateQuantity({{ $productId }}, 1)"
+                                                <input type="number"
+                                                    wire:model.live="cart.{{ $productId }}.quantity" min="1"
+                                                    max="{{ $item['quantity'] }}"
+                                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 border border-gray-300 rounded-lg px-2 py-1"
+                                                    value="{{ $item['quantity'] }}"
+                                                    oninput="if(this.value < 1) this.value = 1" /> <button
+                                                    wire:click="updateQuantity({{ $productId }}, 1)"
                                                     class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">+</button>
                                             </div>
                                         </td>
@@ -521,6 +530,14 @@ new class extends Component {
                                     </flux:select>
                                 </div>
                             </div>
+
+                            @if ($paymentScheme == 'partial-payment')
+                                <div>
+                                    <flux:input type="number" id="partial_payment_amount"
+                                        wire:model.live="partialPaymentAmount" label="Partial Payment Amount:"
+                                        min="0" step="0.01" placeholder="Enter amount here" />
+                                </div>
+                            @endif
 
                             <div>
                                 <flux:select id="payment_status" wire:model.live="paymentStatus"
@@ -681,14 +698,39 @@ new class extends Component {
                         </small>
 
                     </div>
+                    @if ($paymentScheme == 'partial-payment')
+                        <div class="flex justify-end text-sm">
+                            <small>
+                                <span class="mr-4 dark:text-gray-300">Partial Payment:</span>
+                                <span class="dark:text-gray-300">₱{{ number_format($partialPaymentAmount, 2) }}</span>
+                            </small>
+                        </div>
+                    @endif
+                    @if ($paymentMethod == 'returned')
+                        <div class="flex justify-end text-sm">
+                            <small>
+                                <span class="mr-4 dark:text-gray-300">Returned:</span>
+                                <span
+                                    class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount, 2) }}</span>
+                            </small>
+                        </div>
+                    @endif
                     <div class="flex justify-end font-bold">
                         <small>
                             <span class="mr-4 dark:text-gray-300">Total Amount Due:</span>
                             <span
                                 class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount, 2) }}</span>
                         </small>
-
                     </div>
+                    @if ($paymentScheme == 'partial-payment')
+                        <div class="flex justify-end font-bold">
+                            <small>
+                                <span class="mr-4 dark:text-gray-300">Balance Due:</span>
+                                <span
+                                    class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount - $partialPaymentAmount, 2) }}</span>
+                            </small>
+                        </div>
+                    @endif
                 </div>
 
                 {{-- general notes --}}

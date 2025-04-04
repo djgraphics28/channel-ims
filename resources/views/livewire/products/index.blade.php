@@ -2,13 +2,14 @@
 
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
+use Livewire\WithFileUploads;
 use App\Models\Product;
 use App\Models\Category;
 use App\Models\Unit;
 use Livewire\Attributes\Title;
 
 new class extends Component {
-    use WithPagination;
+    use WithPagination, WithFileUploads;
 
     public $search = '';
     public $showModal = false;
@@ -35,6 +36,7 @@ new class extends Component {
 
     public $selectedCategory = '';
     public $selectedUnit = '';
+    public $image;
 
     public function rules()
     {
@@ -49,6 +51,7 @@ new class extends Component {
             'selling_price' => 'required|numeric|min:0',
             'created_by' => 'nullable|string',
             'updated_by' => 'nullable|string',
+            'image' => 'nullable|image|max:2048', // 1MB Max
         ];
     }
 
@@ -67,15 +70,15 @@ new class extends Component {
         $this->name = $product->name;
         $this->description = $product->description;
         $this->unit_id = $product->unit_id;
-        $this->stock = $product->stock;
+        $this->stock = $product->product_stock->stock ?? 0;
         $this->buying_price = $product->buying_price;
         $this->selling_price = $product->selling_price;
         $this->created_by = $product->created_by;
         $this->updated_by = $product->updated_by;
         $this->isEditing = true;
         $this->showModal = true;
+        $this->image = $product->getFirstMedia('product_images')?->getUrl() ?? '';
     }
-
     public function addStock($productId)
     {
         $this->stock_quantity = '';
@@ -88,32 +91,60 @@ new class extends Component {
 
     public function saveStock()
     {
-        $this->product->increment('stock', $this->stock_quantity);
-        $this->product->stocks()->create([
-            'quantity' => $this->stock_quantity,
-        ]);
+        // check if product exists
+        $productStock = $this->product
+            ->product_stock()
+            ->where('branch_id', auth()->user()->branch_id)
+            ->first();
+        if (!$productStock) {
+            // create if not exist
+            $this->product->product_stock()->create([
+                'stock' => $this->stock_quantity,
+                'branch_id' => auth()->user()->branch_id,
+            ]);
+        } else {
+            // update if exists
+            $productStock->update([
+                'stock' => $productStock->stock + $this->stock_quantity,
+            ]);
+        }
 
         flash()->success('Product stocks added successfully!');
 
         $this->showAddStockModal = false;
     }
-
     public function save()
     {
         $validatedData = $this->validate();
+        $validatedData['stock'] = $this->stock;
 
         if ($this->isEditing) {
             $this->product->update($validatedData);
+            $this->product->product_stock()->updateOrCreate(['branch_id' => auth()->user()->branch_id], ['stock' => $this->stock]);
+
+            if ($this->image) {
+                $this->product->clearMediaCollection('product_images');
+                $this->product->addMedia($this->image->getRealPath())->toMediaCollection('product_images');
+            }
+
             flash()->success('Product updated successfully!');
         } else {
-            Product::create($validatedData);
+            $product = Product::create($validatedData);
+            $product->product_stock()->create([
+                'stock' => $this->stock,
+                'branch_id' => auth()->user()->branch_id,
+            ]);
+
+            if ($this->image) {
+                $product->addMedia($this->image->getRealPath())->toMediaCollection('product_images');
+            }
+
             flash()->success('Product created successfully!');
         }
 
         $this->showModal = false;
         $this->resetForm();
     }
-
     public function confirmDelete($productId)
     {
         $this->productToDelete = $productId;
@@ -169,6 +200,14 @@ new class extends Component {
         if ($this->selectedUnit) {
             $query->where('unit_id', $this->selectedUnit);
         }
+
+        $query
+            ->with([
+                'product_stock' => function ($query) {
+                    $query->where('branch_id', auth()->user()->branch_id);
+                },
+            ])
+            ->orderBy('created_at', 'desc');
 
         return [
             'products' => $query->paginate($this->pageRows),
@@ -309,10 +348,10 @@ new class extends Component {
                                         {{ $product->category->name ?? 'not yet set' }}</td>
                                     <td
                                         class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
-                                        {{ $product->unit->name  ?? 'not yet set' }}</td>
+                                        {{ $product->unit->name ?? 'not yet set' }}</td>
                                     <td
                                         class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
-                                        {{ $product->stock }}</td>
+                                        {{ $product->product_stock->stock ?? 0 }}</td>
                                     <td
                                         class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
                                         <strong>₱{{ $product->buying_price }}</strong>
@@ -322,13 +361,19 @@ new class extends Component {
                                         <strong>₱{{ $product->selling_price }}</strong>
                                     </td>
                                     <td class="px-4 sm:px-6 py-2 sm:py-4 space-x-2 text-sm">
-                                        <button wire:click="edit({{ $product->id }})"
-                                            class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">Edit</button>
-                                        <button wire:click="confirmDelete({{ $product->id }})"
-                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">Delete</button>
-                                        <button wire:click="addStock({{ $product->id }})"
-                                            class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 cursor-pointer">Add
-                                            Stock</button>
+                                        @can('products.edit')
+                                            <button wire:click="edit({{ $product->id }})"
+                                                class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">Edit</button>
+                                        @endcan
+                                        @can('products.delete')
+                                            <button wire:click="confirmDelete({{ $product->id }})"
+                                                class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">Delete</button>
+                                        @endcan
+                                        @can('products.add-stock')
+                                            <button wire:click="addStock({{ $product->id }})"
+                                                class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 cursor-pointer">Add
+                                                Stock</button>
+                                        @endcan
                                     </td>
                                 </tr>
                             @endforeach
@@ -380,6 +425,7 @@ new class extends Component {
             </div>
         </div>
     @endif
+
     @if ($showModal)
         <div class="fixed inset-0 z-10 overflow-y-auto">
             <div class="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -390,6 +436,45 @@ new class extends Component {
                     class="inline-block transform overflow-hidden rounded-lg bg-white dark:bg-gray-900 text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
                     <form wire:submit="save">
                         <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <!-- Add image upload section -->
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Product Image
+                                </label>
+                                <div class="mt-1 flex items-center">
+                                    <div x-data="{ imagePreview: '{{ $image }}' }" class="w-full">
+                                        <input type="file" wire:model="image" accept="image/*" class="hidden"
+                                            x-ref="fileInput"
+                                            @change="const file = $refs.fileInput.files[0];
+                        const reader = new FileReader();
+                        reader.onload = (e) => { imagePreview = e.target.result };
+                        reader.readAsDataURL(file);">
+
+                                        <div class="flex flex-col items-center justify-center">
+                                            <!-- Image Preview -->
+                                            <template x-if="imagePreview">
+                                                <img :src="imagePreview"
+                                                    class="mb-4 h-40 w-40 object-cover rounded-lg">
+                                            </template>
+
+                                            <!-- Show existing image if no new preview -->
+                                            {{-- @if ($image && !is_string($image))
+                                                <img src="{{ $image->temporaryUrl() }}"
+                                                    class="mb-4 h-40 w-40 object-cover rounded-lg">
+                                            @endif --}}
+
+                                            <!-- Upload Button -->
+                                            <button type="button" @click="$refs.fileInput.click()"
+                                                class="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                Choose Image
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                @error('image')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
                             <div class="mb-4">
                                 <label
                                     class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>

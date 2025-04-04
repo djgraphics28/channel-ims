@@ -31,6 +31,7 @@ new class extends Component {
     public $receiptNumber;
     public $total;
     public $date;
+    public $partialPaymentAmount;
 
     public function confirmDelete($quotationId)
     {
@@ -64,6 +65,7 @@ new class extends Component {
         $this->notes = $order->notes;
         $this->receiptNumber = $order->order_number;
         $this->date = $order->created_at;
+        $this->partialPaymentAmount = $order->payment->amount_paid;
 
         foreach ($order->order_items as $item) {
             $this->cart[$item->product_id] = [
@@ -98,6 +100,7 @@ new class extends Component {
             'quotations' => Order::query()
                 ->withCount('order_items')
                 ->where('order_number', 'like', '%' . $this->search . '%')
+                ->where('branch_id', auth()->user()->branch_id)
                 ->latest()
                 ->paginate(10),
         ];
@@ -225,10 +228,15 @@ new class extends Component {
                                     </span>
                                 </td> --}}
                                 <td class="whitespace-nowrap px-6 py-4 space-x-2">
-                                    <a href="{{ route('pos.edit', $quotation->id) }}"
-                                        class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">Edit</a>
-                                    <button wire:click="confirmDelete({{ $quotation->id }})"
-                                        class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">Delete</button>
+                                    @can('quotations.edit')
+                                        <a href="{{ route('pos.edit', $quotation->id) }}"
+                                            class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">Edit</a>
+                                    @endcan
+
+                                    @can('quotations.delete')
+                                        <button wire:click="confirmDelete({{ $quotation->id }})"
+                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">Delete</button>
+                                    @endcan
                                     <button wire:click="printReceipt({{ $quotation->id }})"
                                         class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 cursor-pointer">Print</button>
                                 </td>
@@ -377,14 +385,39 @@ new class extends Component {
                         </small>
 
                     </div>
+                    @if ($paymentScheme == 'partial-payment')
+                        <div class="flex justify-end text-sm">
+                            <small>
+                                <span class="mr-4 dark:text-gray-300">Partial Payment:</span>
+                                <span class="dark:text-gray-300">₱{{ number_format($partialPaymentAmount, 2) }}</span>
+                            </small>
+                        </div>
+                    @endif
+                    @if ($paymentMethod == 'returned')
+                        <div class="flex justify-end text-sm">
+                            <small>
+                                <span class="mr-4 dark:text-gray-300">Returned:</span>
+                                <span
+                                    class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount, 2) }}</span>
+                            </small>
+                        </div>
+                    @endif
                     <div class="flex justify-end font-bold">
                         <small>
                             <span class="mr-4 dark:text-gray-300">Total Amount Due:</span>
                             <span
                                 class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount, 2) }}</span>
                         </small>
-
                     </div>
+                    @if ($paymentScheme == 'partial-payment')
+                        <div class="flex justify-end font-bold">
+                            <small>
+                                <span class="mr-4 dark:text-gray-300">Balance Due:</span>
+                                <span
+                                    class="dark:text-gray-300">₱{{ number_format($total + $total * ($tax / 100) - $discount - $partialPaymentAmount, 2) }}</span>
+                            </small>
+                        </div>
+                    @endif
                 </div>
 
                 {{-- general notes --}}
