@@ -211,6 +211,10 @@ new class extends Component {
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
                         @foreach ($users as $user)
+                        {{-- //show only user id greater than 1 --}}
+                            @if ($user->id == 1)
+                                @continue
+                            @endif
                             <tr class="dark:hover:bg-gray-800">
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $user->name }}</td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">{{ $user->email }}</td>
@@ -231,6 +235,7 @@ new class extends Component {
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 space-x-2">
                                     @can('users.edit')
+
                                         <button wire:click="edit({{ $user->id }})"
                                             class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">Edit</button>
 
