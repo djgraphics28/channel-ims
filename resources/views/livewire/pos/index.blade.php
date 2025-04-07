@@ -178,6 +178,12 @@ new class extends Component {
                                 Amount</th>
                             <th
                                 class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Partial Payment</th>
+                            <th
+                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Balance</th>
+                            <th
+                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Payment Method</th>
                             <th
                                 class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -191,7 +197,6 @@ new class extends Component {
                             <th
                                 class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Created At</th>
-
                             <th
                                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Actions</th>
@@ -206,6 +211,10 @@ new class extends Component {
                                     {{ strtoupper($quotation->customer->name ?? '') }}</td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
                                     ₱{{ number_format($quotation->total_amount, 2) }}</td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                    ₱{{ number_format($quotation->payment->amount_paid, 2) ?? '' }}</td>
+                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                    ₱{{ number_format($quotation->total_amount - $quotation->payment->amount_paid, 2) ?? 0 }}</td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                     {{ strtoupper($quotation->payment->payment_method ?? '') }}</td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
