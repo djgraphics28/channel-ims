@@ -36,8 +36,7 @@ new class extends Component {
     public function with()
     {
         // Base query for payments with branch filtering
-        $paymentQuery = Payment::whereIn('payment_status', ['paid','not-paid'])
-            ->when($this->selectedBranch, function ($query) {
+        $paymentQuery = Payment::when($this->selectedBranch, function ($query) {
                 $query->whereHas('order', function ($q) {
                     $q->where('branch_id', $this->selectedBranch);
                 });
@@ -131,11 +130,11 @@ new class extends Component {
 
         $this->branchSales = $branchSales;
 
-        $totalCash = (clone $dailySalesQuery)->where('payment_method', 'cash')->sum('amount_paid');
-        $totalCod = (clone $dailySalesQuery)->where('payment_method', 'cod')->sum('amount_paid');
-        $totalSign = (clone $dailySalesQuery)->where('payment_method', 'sign')->sum('amount_paid');
-        $totalReturn = (clone $dailySalesQuery)->where('payment_method', 'return')->sum('amount_paid');
-        $totalRefund = (clone $dailySalesQuery)->where('payment_method', 'refund')->sum('amount_paid');
+        $totalCash = (clone $dailySalesQuery)->where('payment_method', 'cash')->where('payment_status', 'paid')->sum('amount_paid');
+        $totalCod = (clone $dailySalesQuery)->where('payment_method', 'cod')->whereIn('payment_status', ['paid','not-paid'])->sum('amount_paid');
+        $totalSign = (clone $dailySalesQuery)->where('payment_method', 'sign')->whereIn('payment_status', ['paid','not-paid'])->sum('amount_paid');
+        $totalReturn = (clone $dailySalesQuery)->where('payment_method', 'return')->where('payment_status', 'paid')->sum('amount_paid');
+        $totalRefund = (clone $dailySalesQuery)->where('payment_method', 'refund')->where('payment_status', 'paid')->sum('amount_paid');
 
         $dailySales = $dailySales - ($totalReturn - $totalRefund);
 
