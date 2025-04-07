@@ -36,7 +36,7 @@ new class extends Component {
     public function with()
     {
         // Base query for payments with branch filtering
-        $paymentQuery = Payment::where('payment_status', 'paid')
+        $paymentQuery = Payment::whereIn('payment_status', ['paid','not-paid'])
             ->when($this->selectedBranch, function ($query) {
                 $query->whereHas('order', function ($q) {
                     $q->where('branch_id', $this->selectedBranch);
