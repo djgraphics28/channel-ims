@@ -164,95 +164,87 @@ new class extends Component {
             </div>
 
             <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead class="bg-gray-50 dark:bg-gray-800">
-                        <tr>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Quotation #</th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Customer Name</th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Amount</th>
-                            <th
-                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Partial Payment</th>
-                            <th
-                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Balance</th>
-                            <th
-                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Payment Method</th>
-                            <th
-                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Payment Scheme</th>
-                            <th
-                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Payment Status</th>
-                            <th
-                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Order Items</th>
-                            <th
-                                class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Created At</th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-                        @foreach ($quotations as $quotation)
-                            <tr class="dark:hover:bg-gray-800">
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ $quotation->order_number }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ strtoupper($quotation->customer->name ?? '') }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    ₱{{ number_format($quotation->total_amount, 2) }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                    ₱{{ number_format($quotation->payment->amount_paid, 2) ?? '' }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                    ₱{{ number_format($quotation->total_amount - $quotation->payment->amount_paid, 2) ?? 0 }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                    {{ strtoupper($quotation->payment->payment_method ?? '') }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                    {{ strtoupper($quotation->payment->payment_scheme ?? '') }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                    {{ strtoupper($quotation->payment->payment_status ?? '') }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                    {{ $quotation->order_items_count ?? '' }}</td>
-                                <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                    {{ $quotation->created_at ?? '' }}</td>
-                                {{-- <td class="whitespace-nowrap px-6 py-4">
-                                    <span
-                                        class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
-                                        {{ $quotation->status === 'approved'
-                                            ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300'
-                                            : ($quotation->status === 'rejected'
-                                                ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-300'
-                                                : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-300') }}">
-                                        {{ ucfirst($quotation->status) }}
-                                    </span>
-                                </td> --}}
-                                <td class="whitespace-nowrap px-6 py-4 space-x-2">
-                                    @can('quotations.edit')
-                                        <a href="{{ route('pos.edit', $quotation->id) }}"
-                                            class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">Edit</a>
-                                    @endcan
-
-                                    @can('quotations.delete')
-                                        <button wire:click="confirmDelete({{ $quotation->id }})"
-                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">Delete</button>
-                                    @endcan
-                                    <button wire:click="printReceipt({{ $quotation->id }})"
-                                        class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 cursor-pointer">Print</button>
-                                </td>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-800">
+                            <tr>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Quotation #</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Customer Name</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Amount</th>
+                                <th
+                                    class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Partial Payment</th>
+                                <th
+                                    class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Balance</th>
+                                <th
+                                    class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Payment Method</th>
+                                <th
+                                    class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Payment Scheme</th>
+                                <th
+                                    class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Payment Status</th>
+                                <th
+                                    class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Order Items</th>
+                                <th
+                                    class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Created At</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Actions</th>
                             </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+                            @foreach ($quotations as $quotation)
+                                <tr class="dark:hover:bg-gray-800">
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
+                                        {{ $quotation->order_number }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
+                                        {{ strtoupper($quotation->customer->name ?? '') }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
+                                        ₱{{ number_format($quotation->total_amount, 2) }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                        ₱{{ number_format($quotation->payment->amount_paid, 2) ?? '' }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                        ₱{{ number_format($quotation->total_amount - $quotation->payment->amount_paid, 2) ?? 0 }}
+                                    </td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                        {{ strtoupper($quotation->payment->payment_method ?? '') }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                        {{ strtoupper($quotation->payment->payment_scheme ?? '') }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                        {{ strtoupper($quotation->payment->payment_status ?? '') }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                        {{ $quotation->order_items_count ?? '' }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                        {{ $quotation->created_at ?? '' }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 space-x-2">
+                                        @can('quotations.edit')
+                                            <a href="{{ route('pos.edit', $quotation->id) }}"
+                                                class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">Edit</a>
+                                        @endcan
+
+                                        @can('quotations.delete')
+                                            <button wire:click="confirmDelete({{ $quotation->id }})"
+                                                class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">Delete</button>
+                                        @endcan
+                                        <button wire:click="printReceipt({{ $quotation->id }})"
+                                            class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 cursor-pointer">Print</button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             </div>
             <div class="mt-4">
                 {{ $quotations->links() }}
