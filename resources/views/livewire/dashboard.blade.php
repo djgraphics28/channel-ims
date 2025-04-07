@@ -16,6 +16,7 @@ new class extends Component {
     public $branches = [];
     public $selectedBranch = null;
     public $branchSales = [];
+    public $totalTransactions = 0;
 
     public function mount()
     {
@@ -33,6 +34,25 @@ new class extends Component {
     #[Title('Dashboard')]
     public function with()
     {
+        $this->totalTransactions = Payment::where('payment_status', 'paid')
+            ->when($this->selectedBranch, function ($query) {
+                $query->whereHas('order', function ($q) {
+                    $q->where('branch_id', $this->selectedBranch);
+                });
+            })
+            ->when(
+                !auth()
+                    ->user()
+                    ->hasRole(['superadmin', 'admin']),
+                function ($query) {
+                    $query->whereHas('order', function ($q) {
+                        $q->where('branch_id', auth()->user()->branch_id);
+                    });
+                },
+            )
+            ->count();
+
+
         // Base query for payments with branch filtering
         $paymentQuery = Payment::where('payment_status', 'paid')
             ->when($this->selectedBranch, function ($query) {
@@ -275,6 +295,11 @@ new class extends Component {
                 <div class="flex justify-between">
                     <span>Refund:</span>
                     <span class="font-semibold">Php -{{ number_format($totalRefund, 2) }}</span>
+                </div>
+                <hr>
+                <div class="flex justify-between">
+                    <span>Total Transactions:</span>
+                    <span class="font-semibold">{{ $totalTransactions }}</span>
                 </div>
             </div>
         </div>
