@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\CashFlow;
 use App\Models\Branch;
+use App\Models\Order;
 use Carbon\Carbon;
 
 new class extends Component {
@@ -34,25 +35,6 @@ new class extends Component {
     #[Title('Dashboard')]
     public function with()
     {
-        $this->totalTransactions = Payment::where('payment_status', 'paid')
-            ->when($this->selectedBranch, function ($query) {
-                $query->whereHas('order', function ($q) {
-                    $q->where('branch_id', $this->selectedBranch);
-                });
-            })
-            ->when(
-                !auth()
-                    ->user()
-                    ->hasRole(['superadmin', 'admin']),
-                function ($query) {
-                    $query->whereHas('order', function ($q) {
-                        $q->where('branch_id', auth()->user()->branch_id);
-                    });
-                },
-            )
-            ->count();
-
-
         // Base query for payments with branch filtering
         $paymentQuery = Payment::where('payment_status', 'paid')
             ->when($this->selectedBranch, function ($query) {
@@ -114,6 +96,20 @@ new class extends Component {
 
         $this->bestSellersData = $bestSellers->pluck('total_sold')->toArray();
         $this->bestSellersLabels = $bestSellers->pluck('name')->toArray();
+
+        $this->totalTransactions = Order::when(
+            !auth()
+                ->user()
+                ->hasRole(['superadmin', 'admin']),
+            function ($q) {
+                $q->where('branch_id', auth()->user()->branch_id);
+            },
+        )
+            ->when($this->selectedBranch, function ($q) {
+                $q->where('branch_id', $this->selectedBranch);
+            })
+            ->whereDate('created_at', today())
+            ->count();
 
         // Daily metrics
         $dailySalesQuery = (clone $paymentQuery)->whereDate('created_at', today());
