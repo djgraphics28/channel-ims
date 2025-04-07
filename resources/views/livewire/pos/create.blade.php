@@ -48,7 +48,7 @@ new class extends Component {
     public $address;
     public $birth_date;
 
-    public $partialPaymentAmount;
+    public $partialPaymentAmount = 0;
 
     public $receiptModal = false;
 
@@ -427,6 +427,7 @@ new class extends Component {
                                                         class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">-</button>
                                                     <input type="number"
                                                         wire:model.live="cart.{{ $productId }}.quantity"
+                                                        wire:keydown="calculateTotal"
                                                         min="1" max="{{ $item['quantity'] }}"
                                                         class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 border border-gray-300 rounded-lg px-2 py-1"
                                                         value="{{ $item['quantity'] }}"
