@@ -11,7 +11,7 @@ Route::get('/', function () {
 //     ->middleware(['auth', 'verified'])
 //     ->name('dashboard');
 
-Route::middleware(['auth','check.active'])->group(function () {
+Route::middleware(['auth', 'check.active'])->group(function () {
     Volt::route('dashboard', 'dashboard')->name('dashboard');
     Route::redirect('settings', 'settings/profile');
 
@@ -34,4 +34,42 @@ Route::middleware(['auth','check.active'])->group(function () {
 
 });
 
-require __DIR__.'/auth.php';
+//product updater
+Route::get('product-updater', function () {
+    $oldProducts = \App\Models\OldProduct::all();
+    foreach ($oldProducts as $oldProduct) {
+        //check if product already exists
+        $product = \App\Models\Product::where('code', $oldProduct->code)->first();
+        if ($product) {
+            //update product
+            $product->update([
+                'stock' => $oldProduct->stock,
+                'buying_price' => $oldProduct->buyingPrice,
+                'selling_price' => $oldProduct->sellingPrice,
+            ]);
+
+            $product->product_stock()->where('branch_id', 1)->update([
+                'stock' => $oldProduct->stock
+            ]);
+        } else {
+            //create product
+            $product = \App\Models\Product::create([
+                'name' => $oldProduct->name,
+                'code' => $oldProduct->code,
+                'stock' => $oldProduct->stock,
+                'buying_price' => $oldProduct->buyingPrice,
+                'selling_price' => $oldProduct->sellingPrice,
+                'category_id' => 1,
+                'unit_id' => 1,
+            ]);
+
+            $product->product_stock()->create([
+                'branch_id' => 1,
+                'stock' => $oldProduct->stock
+            ]);
+        }
+    }
+
+})->name('product-updater');
+
+require __DIR__ . '/auth.php';

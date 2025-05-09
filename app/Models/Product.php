@@ -74,4 +74,15 @@ class Product extends Model implements HasMedia
     {
         return $this->hasOne(ProductStock::class, 'product_id', 'id')->where('branch_id', auth()->user()->branch_id);
     }
+
+    /**
+     * Get all of the stock for the Product
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function pstocks(): HasMany
+    {
+        return $this->hasMany(ProductStock::class, 'product_id', 'id');
+    }
+
 }
