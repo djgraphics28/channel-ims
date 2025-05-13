@@ -660,8 +660,7 @@ new class extends Component {
                         <tbody>
                             @foreach ($cart as $item)
                                 <tr>
-                                    <td class="text-center dark:text-gray-300"><small>{{ $item['quantity'] }}</small>
-                                    </td>
+                                    <td class="text-center dark:text-gray-300"><small>{{ fmod($item['quantity'], 1) ? number_format($item['quantity'], 2) : number_format($item['quantity'], 0) }}</small> </td>
                                     <td class="text-center dark:text-gray-300"><small>{{ $item['unit'] }}</small></td>
                                     <td class="text-center dark:text-gray-300"><small>{{ $item['name'] }}</small></td>
                                     <td class="text-right dark:text-gray-300">
