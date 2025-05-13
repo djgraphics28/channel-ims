@@ -139,37 +139,45 @@ new class extends Component {
             $query->whereDate('created_at', '<=', $this->endDate);
         }
 
+        $dateQuery = Order::where('branch_id', auth()->user()->branch_id);
+        if ($this->startDate) {
+            $dateQuery->whereDate('created_at', '>=', $this->startDate);
+        }
+        if ($this->endDate) {
+            $dateQuery->whereDate('created_at', '<=', $this->endDate);
+        }
+
         return [
             'quotations' => $query->latest()->paginate(10),
             'statusCounts' => [
-                'all' => Order::where('branch_id', auth()->user()->branch_id)->count(),
-                'paid' => Order::where('branch_id', auth()->user()->branch_id)
+                'all' => $dateQuery->count(),
+                'paid' => (clone $dateQuery)
                     ->whereHas('payment', fn($q) => $q->where('payment_status', 'paid'))->count(),
-                'pending' => Order::where('branch_id', auth()->user()->branch_id)
+                'pending' => (clone $dateQuery)
                     ->whereHas('payment', fn($q) => $q->where('payment_status', 'pending'))->count(),
-                'partial' => Order::where('branch_id', auth()->user()->branch_id)
+                'partial' => (clone $dateQuery)
                     ->whereHas('payment', fn($q) => $q->where('payment_status', 'partial'))->count(),
-                'cancelled' => Order::where('branch_id', auth()->user()->branch_id)
+                'cancelled' => (clone $dateQuery)
                     ->whereHas('payment', fn($q) => $q->where('payment_status', 'cancelled'))->count(),
             ],
             'schemeCounts' => [
-                'all' => Order::where('branch_id', auth()->user()->branch_id)->count(),
-                'full-payment' => Order::where('branch_id', auth()->user()->branch_id)
+                'all' => $dateQuery->count(),
+                'full-payment' => (clone $dateQuery)
                     ->whereHas('payment', fn($q) => $q->where('payment_scheme', 'full-payment'))->count(),
-                'partial-payment' => Order::where('branch_id', auth()->user()->branch_id)
+                'partial-payment' => (clone $dateQuery)
                     ->whereHas('payment', fn($q) => $q->where('payment_scheme', 'partial-payment'))->count(),
             ],
             'methodCounts' => [
-                'all' => Order::where('branch_id', auth()->user()->branch_id)->count(),
-                'cash' => Order::where('branch_id', auth()->user()->branch_id)
+                'all' => $dateQuery->count(),
+                'cash' => (clone $dateQuery)
                     ->whereHas('payment', fn($q) => $q->where('payment_method', 'cash'))->count(),
-                'credit' => Order::where('branch_id', auth()->user()->branch_id)
-                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'credit'))->count(),
-                'gcash' => Order::where('branch_id', auth()->user()->branch_id)
-                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'gcash'))->count(),
-                'bank-transfer' => Order::where('branch_id', auth()->user()->branch_id)
-                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'bank-transfer'))->count(),
-                'returned' => Order::where('branch_id', auth()->user()->branch_id)
+                'cod' => (clone $dateQuery)
+                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'cod'))->count(),
+                'sign' => (clone $dateQuery)
+                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'sign'))->count(),
+                'refund' => (clone $dateQuery)
+                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'refund'))->count(),
+                'returned' => (clone $dateQuery)
                     ->whereHas('payment', fn($q) => $q->where('payment_method', 'returned'))->count(),
             ]
         ];
@@ -282,17 +290,17 @@ new class extends Component {
                         class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'cash' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Cash ({{ $methodCounts['cash'] }})
                     </button>
-                    <button wire:click="$set('methodFilter', 'credit')"
-                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'credit' ? 'bg-yellow-100 dark:bg-yellow-900 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
-                        Credit ({{ $methodCounts['credit'] }})
+                    <button wire:click="$set('methodFilter', 'cod')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'cod' ? 'bg-yellow-100 dark:bg-yellow-900 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        COD ({{ $methodCounts['cod'] }})
                     </button>
-                    <button wire:click="$set('methodFilter', 'gcash')"
-                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'gcash' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
-                        GCash ({{ $methodCounts['gcash'] }})
+                    <button wire:click="$set('methodFilter', 'sign')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'sign' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Sign ({{ $methodCounts['sign'] }})
                     </button>
-                    <button wire:click="$set('methodFilter', 'bank-transfer')"
-                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'bank-transfer' ? 'bg-indigo-100 dark:bg-indigo-900 border-indigo-300 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
-                        Bank Transfer ({{ $methodCounts['bank-transfer'] }})
+                    <button wire:click="$set('methodFilter', 'refund')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'refund' ? 'bg-indigo-100 dark:bg-indigo-900 border-indigo-300 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Refund ({{ $methodCounts['refund'] }})
                     </button>
                     <button wire:click="$set('methodFilter', 'returned')"
                         class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'returned' ? 'bg-red-100 dark:bg-red-900 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
