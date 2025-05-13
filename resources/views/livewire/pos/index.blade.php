@@ -153,12 +153,12 @@ new class extends Component {
                 'all' => $dateQuery->count(),
                 'paid' => (clone $dateQuery)
                     ->whereHas('payment', fn($q) => $q->where('payment_status', 'paid'))->count(),
-                'pending' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_status', 'pending'))->count(),
-                'partial' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_status', 'partial'))->count(),
-                'cancelled' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_status', 'cancelled'))->count(),
+                'not-paid' => (clone $dateQuery)
+                    ->whereHas('payment', fn($q) => $q->where('payment_status', 'not-paid'))->count(),
+                // 'partial' => (clone $dateQuery)
+                //     ->whereHas('payment', fn($q) => $q->where('payment_status', 'partial'))->count(),
+                // 'cancelled' => (clone $dateQuery)
+                //     ->whereHas('payment', fn($q) => $q->where('payment_status', 'cancelled'))->count(),
             ],
             'schemeCounts' => [
                 'all' => $dateQuery->count(),
@@ -244,18 +244,18 @@ new class extends Component {
                         class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'paid' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Paid ({{ $statusCounts['paid'] }})
                     </button>
-                    <button wire:click="$set('statusFilter', 'pending')"
-                        class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
-                        Pending ({{ $statusCounts['pending'] }})
+                    <button wire:click="$set('statusFilter', 'not-paid')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'not-paid' ? 'bg-yellow-100 dark:bg-yellow-900 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Not-Paid ({{ $statusCounts['not-paid'] }})
                     </button>
-                    <button wire:click="$set('statusFilter', 'partial')"
+                    {{-- <button wire:click="$set('statusFilter', 'partial')"
                         class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'partial' ? 'bg-purple-100 dark:bg-purple-900 border-purple-300 dark:border-purple-700 text-purple-800 dark:text-purple-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Partial ({{ $statusCounts['partial'] }})
                     </button>
                     <button wire:click="$set('statusFilter', 'cancelled')"
                         class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'cancelled' ? 'bg-red-100 dark:bg-red-900 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Cancelled ({{ $statusCounts['cancelled'] }})
-                    </button>
+                    </button> --}}
                 </div>
             </div>
 
