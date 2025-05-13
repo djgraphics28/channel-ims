@@ -58,7 +58,7 @@ new class extends Component {
             'selling_price' => 'required|numeric|min:0',
             'created_by' => 'nullable|string',
             'updated_by' => 'nullable|string',
-            'image' => 'nullable|image|max:2048', // 1MB Max
+            // 'image' => 'nullable|image|max:2048', // 1MB Max
         ];
     }
 
