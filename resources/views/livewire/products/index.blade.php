@@ -126,7 +126,7 @@ new class extends Component {
                 ]);
             } else {
                 $productStock->update([
-                    'stock' => $productStock->stock + $this->stock_quantity,
+                    'stock' => $this->stock_quantity,
                 ]);
             }
         }
