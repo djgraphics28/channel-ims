@@ -20,6 +20,13 @@ new class extends Component {
     public $productToDelete;
     public $pageRows = 10;
 
+    // Bulk actions properties
+    public $selectedProducts = [];
+    public $selectAll = false;
+    public $bulkAction = '';
+    public $bulkCategory = '';
+    public $bulkUnit = '';
+
     public $category_id;
     public $code;
     public $name;
@@ -55,6 +62,82 @@ new class extends Component {
         ];
     }
 
+    // Bulk action methods
+    public function updatedSelectAll($value)
+    {
+        if ($value) {
+            $this->selectedProducts = $this->products->pluck('id')->toArray();
+        } else {
+            $this->selectedProducts = [];
+        }
+    }
+
+    public function bulkDelete()
+    {
+        Product::whereIn('id', $this->selectedProducts)->delete();
+        $this->selectedProducts = [];
+        $this->selectAll = false;
+        $this->bulkAction = '';
+        flash()->success('Selected products deleted successfully!');
+    }
+
+    public function bulkUpdateCategory()
+    {
+        $this->validate(['bulkCategory' => 'required']);
+
+        Product::whereIn('id', $this->selectedProducts)
+            ->update(['category_id' => $this->bulkCategory]);
+
+        $this->selectedProducts = [];
+        $this->selectAll = false;
+        $this->bulkAction = '';
+        $this->bulkCategory = '';
+        flash()->success('Categories updated successfully!');
+    }
+
+    public function bulkUpdateUnit()
+    {
+        $this->validate(['bulkUnit' => 'required']);
+
+        Product::whereIn('id', $this->selectedProducts)
+            ->update(['unit_id' => $this->bulkUnit]);
+
+        $this->selectedProducts = [];
+        $this->selectAll = false;
+        $this->bulkAction = '';
+        $this->bulkUnit = '';
+        flash()->success('Units updated successfully!');
+    }
+
+    public function bulkUpdateStocks()
+    {
+        $this->validate(['stock_quantity' => 'required|integer|min:0']);
+
+        foreach ($this->selectedProducts as $productId) {
+            $productStock = Product::find($productId)
+                ->product_stock()
+                ->where('branch_id', auth()->user()->branch_id)
+                ->first();
+
+            if (!$productStock) {
+                Product::find($productId)->product_stock()->create([
+                    'stock' => $this->stock_quantity,
+                    'branch_id' => auth()->user()->branch_id,
+                ]);
+            } else {
+                $productStock->update([
+                    'stock' => $productStock->stock + $this->stock_quantity,
+                ]);
+            }
+        }
+
+        $this->selectedProducts = [];
+        $this->selectAll = false;
+        $this->bulkAction = '';
+        flash()->success('Stocks updated successfully!');
+    }
+
+    // Rest of your existing methods (create, edit, save, etc.) remain the same
     public function create()
     {
         $this->resetForm();
@@ -79,6 +162,7 @@ new class extends Component {
         $this->showModal = true;
         $this->image = $product->getFirstMedia('product_images')?->getUrl() ?? '';
     }
+
     public function addStock($productId)
     {
         $this->stock_quantity = '';
@@ -91,28 +175,25 @@ new class extends Component {
 
     public function saveStock()
     {
-        // check if product exists
         $productStock = $this->product
             ->product_stock()
             ->where('branch_id', auth()->user()->branch_id)
             ->first();
         if (!$productStock) {
-            // create if not exist
             $this->product->product_stock()->create([
                 'stock' => $this->stock_quantity,
                 'branch_id' => auth()->user()->branch_id,
             ]);
         } else {
-            // update if exists
             $productStock->update([
                 'stock' => $productStock->stock + $this->stock_quantity,
             ]);
         }
 
         flash()->success('Product stocks added successfully!');
-
         $this->showAddStockModal = false;
     }
+
     public function save()
     {
         $validatedData = $this->validate();
@@ -120,7 +201,10 @@ new class extends Component {
 
         if ($this->isEditing) {
             $this->product->update($validatedData);
-            $this->product->product_stock()->updateOrCreate(['branch_id' => auth()->user()->branch_id], ['stock' => $this->stock]);
+            $this->product->product_stock()->updateOrCreate(
+                ['branch_id' => auth()->user()->branch_id],
+                ['stock' => $this->stock]
+            );
 
             if ($this->image) {
                 $this->product->clearMediaCollection('product_images');
@@ -145,6 +229,7 @@ new class extends Component {
         $this->showModal = false;
         $this->resetForm();
     }
+
     public function confirmDelete($productId)
     {
         $this->productToDelete = $productId;
@@ -188,10 +273,14 @@ new class extends Component {
         $this->product = null;
     }
 
-    #[Title('Products')]
-    public function with(): array
+    public function getProductsProperty()
     {
-        $query = Product::query()->where('name', 'like', '%' . $this->search . '%');
+        $query = Product::query()
+            ->where(function ($q) {
+                $q->where('name', 'like', '%' . $this->search . '%')
+                    ->orWhere('code', 'like', '%' . $this->search . '%')
+                    ->orWhere('description', 'like', '%' . $this->search . '%');
+            });
 
         if ($this->selectedCategory) {
             $query->where('category_id', $this->selectedCategory);
@@ -201,22 +290,25 @@ new class extends Component {
             $query->where('unit_id', $this->selectedUnit);
         }
 
-        $query
-            ->with([
-                'product_stock' => function ($query) {
-                    $query->where('branch_id', auth()->user()->branch_id);
-                },
-            ])
-            ->orderBy('created_at', 'desc');
+        return $query->with([
+            'product_stock' => function ($query) {
+                $query->where('branch_id', auth()->user()->branch_id);
+            }
+        ])
+            ->orderBy('created_at', 'desc')
+            ->paginate($this->pageRows);
+    }
 
+    #[Title('Products')]
+    public function with(): array
+    {
         return [
-            'products' => $query->paginate($this->pageRows),
+            'products' => $this->products,
             'categories' => Category::all(),
             'units' => Unit::all(),
         ];
     }
 }; ?>
-
 <div>
     <div class="mb-4">
         <nav class="flex justify-end" aria-label="Breadcrumb">
@@ -268,9 +360,87 @@ new class extends Component {
                     <option value="25">25 per page</option>
                     <option value="50">50 per page</option>
                     <option value="100">100 per page</option>
+                    <option value="500">500 per page</option>
                 </select>
             </div>
         </div>
+
+        <!-- Bulk Actions Bar -->
+        @if(count($selectedProducts) > 0)
+            <div class="mb-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <div class="flex flex-wrap items-center gap-4">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {{ count($selectedProducts) }} product(s) selected
+                    </span>
+
+                    <select wire:model.live="bulkAction"
+                        class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                        <option value="">Bulk Actions</option>
+                        <option value="delete">Delete</option>
+                        <option value="update_category">Update Category</option>
+                        <option value="update_unit">Update Unit</option>
+                        <option value="update_stocks">Update Stocks</option>
+                    </select>
+
+                    @if($bulkAction === 'update_category')
+                        <select wire:model.live="bulkCategory"
+                            class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                            <option value="">Select Category</option>
+                            @foreach ($categories as $category)
+                                <option value="{{ $category->id }}">{{ $category->name }}</option>
+                            @endforeach
+                        </select>
+                        <button wire:click="bulkUpdateCategory"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+                            Apply
+                        </button>
+                    @endif
+
+                    @if($bulkAction === 'update_unit')
+                        <select wire:model.live="bulkUnit"
+                            class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                            <option value="">Select Unit</option>
+                            @foreach ($units as $unit)
+                                <option value="{{ $unit->id }}">{{ $unit->name }}</option>
+                            @endforeach
+                        </select>
+                        <button wire:click="bulkUpdateUnit"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+                            Apply
+                        </button>
+                    @endif
+
+                    @if($bulkAction === 'update_stocks')
+                        {{-- <select wire:model.live="bulkUnit"
+                            class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                            <option value="">Select Unit</option>
+                            @foreach ($units as $unit)
+                                <option value="{{ $unit->id }}">{{ $unit->name }}</option>
+                            @endforeach
+                        </select> --}}
+                        <input wire:model="stock_quantity" type="number" required
+                            class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                        <button wire:click="bulkUpdateStocks"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+                            Apply
+                        </button>
+                    @endif
+
+                    @if($bulkAction === 'delete')
+                        <button wire:click="bulkDelete"
+                            class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600">
+                            Confirm Delete
+                        </button>
+                    @endif
+
+                    <button wire:click="$set('selectedProducts', [], 'selectAll', false, 'bulkAction', '')"
+                        class="px-4 py-2 text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
+                        Clear
+                    </button>
+                </div>
+            </div>
+        @endif
+
         @if ($products->isEmpty())
             <div class="flex flex-col items-center justify-center p-8">
                 <p class="mb-4 text-gray-500 dark:text-gray-400">No products found</p>
@@ -300,35 +470,53 @@ new class extends Component {
                             <tr>
                                 <th
                                     class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Code</th>
+                                    <input type="checkbox" wire:model.live="selectAll"
+                                        class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:border-gray-600 dark:bg-gray-700">
+                                </th>
                                 <th
                                     class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Name</th>
+                                    Code
+                                </th>
                                 <th
                                     class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Category</th>
+                                    Name
+                                </th>
                                 <th
                                     class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Unit</th>
+                                    Category
+                                </th>
+                                <th
+                                    class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Unit
+                                </th>
                                 <th
                                     class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Stock</th>
+                                    Stock
+                                </th>
                                 <th
                                     class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Buying Price</th>
+                                    Buying Price
+                                </th>
                                 <th
                                     class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Selling Price</th>
+                                    Selling Price
+                                </th>
                                 <th
                                     class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Actions</th>
+                                    Actions
+                                </th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
                             @foreach ($products as $product)
                                 <tr x-data="{ open: false }" class="dark:hover:bg-gray-800">
+                                    <td class="px-4 sm:px-6 py-2 sm:py-4 text-sm">
+                                        <input type="checkbox" wire:model.live="selectedProducts" value="{{ $product->id }}"
+                                            class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 dark:border-gray-600 dark:bg-gray-700">
+                                    </td>
                                     <td class="px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
-                                        {{ $product->code }}</td>
+                                        {{ $product->code }}
+                                    </td>
                                     <td class="px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
                                         <button @click="open = !open"
                                             class="sm:hidden text-left w-full">{{ $product->name }}</button>
@@ -343,21 +531,19 @@ new class extends Component {
                                             </p>
                                         </div>
                                     </td>
-                                    <td
-                                        class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
-                                        {{ $product->category->name ?? 'not yet set' }}</td>
-                                    <td
-                                        class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
-                                        {{ $product->unit->name ?? 'not yet set' }}</td>
-                                    <td
-                                        class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
-                                        {{ $product->product_stock->stock ?? 0 }}</td>
-                                    <td
-                                        class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                    <td class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                        {{ $product->category->name ?? 'not yet set' }}
+                                    </td>
+                                    <td class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                        {{ $product->unit->name ?? 'not yet set' }}
+                                    </td>
+                                    <td class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                        {{ $product->product_stock->stock ?? 0 }}
+                                    </td>
+                                    <td class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
                                         <strong>₱{{ $product->buying_price }}</strong>
                                     </td>
-                                    <td
-                                        class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                    <td class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
                                         <strong>₱{{ $product->selling_price }}</strong>
                                     </td>
                                     <td class="px-4 sm:px-6 py-2 sm:py-4 space-x-2 text-sm">
@@ -399,8 +585,7 @@ new class extends Component {
                     <form wire:submit="saveStock">
                         <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="mb-4">
-                                <label
-                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Additional
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Additional
                                     Stock for {{ $addStockProduct }} | Current Stock:
                                     {{ $stockProductCurrentStock }}</label>
                                 <input wire:model="stock_quantity" type="number" required
@@ -444,23 +629,21 @@ new class extends Component {
                                 <div class="mt-1 flex items-center">
                                     <div x-data="{ imagePreview: '{{ $image }}' }" class="w-full">
                                         <input type="file" wire:model="image" accept="image/*" class="hidden"
-                                            x-ref="fileInput"
-                                            @change="const file = $refs.fileInput.files[0];
-                        const reader = new FileReader();
-                        reader.onload = (e) => { imagePreview = e.target.result };
-                        reader.readAsDataURL(file);">
+                                            x-ref="fileInput" @change="const file = $refs.fileInput.files[0];
+                                const reader = new FileReader();
+                                reader.onload = (e) => { imagePreview = e.target.result };
+                                reader.readAsDataURL(file);">
 
                                         <div class="flex flex-col items-center justify-center">
                                             <!-- Image Preview -->
                                             <template x-if="imagePreview">
-                                                <img :src="imagePreview"
-                                                    class="mb-4 h-40 w-40 object-cover rounded-lg">
+                                                <img :src="imagePreview" class="mb-4 h-40 w-40 object-cover rounded-lg">
                                             </template>
 
                                             <!-- Show existing image if no new preview -->
                                             {{-- @if ($image && !is_string($image))
-                                                <img src="{{ $image->temporaryUrl() }}"
-                                                    class="mb-4 h-40 w-40 object-cover rounded-lg">
+                                            <img src="{{ $image->temporaryUrl() }}"
+                                                class="mb-4 h-40 w-40 object-cover rounded-lg">
                                             @endif --}}
 
                                             <!-- Upload Button -->
@@ -490,8 +673,7 @@ new class extends Component {
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <label
-                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code</label>
                                 <input wire:model="code" type="text"
                                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
                                 @error('code')
@@ -499,8 +681,7 @@ new class extends Component {
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <label
-                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
                                 <input wire:model="name" type="text"
                                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
                                 @error('name')
@@ -517,8 +698,7 @@ new class extends Component {
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <label
-                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit</label>
                                 <select wire:model="unit_id"
                                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
                                     <option value="">Select Unit</option>
@@ -531,8 +711,7 @@ new class extends Component {
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <label
-                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock</label>
                                 <input wire:model="stock" type="number" required
                                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
                                 @error('stock')
@@ -610,15 +789,12 @@ new class extends Component {
             </div>
         </div>
     @endif
-
     <div x-data="{ show: false, message: '', type: '' }" x-show="show" x-transition x-init="Livewire.on('notify', (msg, type) => {
         message = msg;
         type = type;
         show = true;
         setTimeout(() => show = false, 3000);
-    })"
-        class="fixed top-5 right-5 px-4 py-2 rounded-lg shadow-md text-white"
-        :class="type === 'success' ? 'bg-green-500' : 'bg-red-500'">
+    })" class="fixed top-5 right-5 px-4 py-2 rounded-lg shadow-md text-white" :class="type === 'success' ? 'bg-green-500' : 'bg-red-500'">
         <span x-text="message"></span>
     </div>
 </div>

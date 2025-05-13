@@ -70,7 +70,7 @@ new class extends Component {
         foreach ($order->order_items as $item) {
             $this->cart[$item->product_id] = [
                 'name' => $item->product->name,
-                'unit' => $item->product->unit_id,
+                'unit' => $item->product->unit->name ?? 'pc',
                 'price' => $item->price,
                 'quantity' => $item->quantity,
             ];
@@ -451,10 +451,10 @@ new class extends Component {
                             <thead>
                                 <tr class="border-b dark:border-gray-700">
                                     <th class="text-left py-2 dark:text-gray-300">Item</th>
-                                    <th class="text-right py-2 dark:text-gray-300">Price</th>
-                                    <th class="text-right py-2 dark:text-gray-300">Quantity</th>
-                                    <th class="text-right py-2 dark:text-gray-300">Subtotal</th>
-                                    <th class="text-right py-2 dark:text-gray-300">Actions</th>
+                                    <th class="text-center py-2 dark:text-gray-300">Price</th>
+                                    <th class="text-center py-2 dark:text-gray-300">Quantity</th>
+                                    <th class="text-center py-2 dark:text-gray-300">Subtotal</th>
+                                    <th class="text-center py-2 dark:text-gray-300">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>

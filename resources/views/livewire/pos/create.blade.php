@@ -403,10 +403,10 @@ new class extends Component {
                                 <thead>
                                     <tr class="border-b dark:border-gray-700">
                                         <th class="text-left py-2 dark:text-gray-300">Item</th>
-                                        <th class="text-right py-2 dark:text-gray-300">Price</th>
-                                        <th class="text-right py-2 dark:text-gray-300">Quantity</th>
-                                        <th class="text-right py-2 dark:text-gray-300">Subtotal</th>
-                                        <th class="text-right py-2 dark:text-gray-300">Actions</th>
+                                        <th class="text-center py-2 dark:text-gray-300">Price</th>
+                                        <th class="text-center py-2 dark:text-gray-300">Quantity</th>
+                                        <th class="text-center py-2 dark:text-gray-300">Subtotal</th>
+                                        <th class="text-center py-2 dark:text-gray-300">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -612,8 +612,7 @@ new class extends Component {
                                 <tr>
                                     <td class="text-center dark:text-gray-300"><small>{{ $item['quantity'] }}</small>
                                     </td>
-                                    <td class="text-center dark:text-gray-300"><small>{{ $item['unit'] }}</small></td>
-                                    <td class="text-center dark:text-gray-300"><small>{{ $item['name'] }}</small></td>
+                                    <td class="text-center dark:text-gray-300"><small>{{ App\Models\Unit::find($item['unit'])?->name ?? 'pc' }}</small></td>                                    <td class="text-center dark:text-gray-300"><small>{{ $item['name'] }}</small></td>
                                     <td class="text-right dark:text-gray-300">
                                         <small>₱{{ number_format($item['price'], 2) }}</small>
                                     </td>

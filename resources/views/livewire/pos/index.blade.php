@@ -16,6 +16,11 @@ new class extends Component {
     public $isEditing = false;
     public $confirmingDelete = false;
     public $quotationToDelete;
+    public $statusFilter = 'all';
+    public $schemeFilter = 'all';
+    public $methodFilter = 'all';
+    public $startDate = null;
+    public $endDate = null;
 
     public $receiptModal = false;
 
@@ -70,7 +75,7 @@ new class extends Component {
         foreach ($order->order_items as $item) {
             $this->cart[$item->product_id] = [
                 'name' => $item->product->name,
-                'unit' => $item->product->unit_id,
+                'unit' => $item->product->unit->name ?? 'pc',
                 'price' => $item->price,
                 'quantity' => $item->quantity,
             ];
@@ -93,16 +98,80 @@ new class extends Component {
         $this->cart = [];
     }
 
+    public function resetFilters()
+    {
+        $this->reset(['statusFilter', 'schemeFilter', 'methodFilter', 'startDate', 'endDate']);
+        $this->resetPage();
+    }
+
     #[Title('Quotations')]
     public function with(): array
     {
+        $query = Order::query()
+            ->withCount('order_items')
+            ->with(['customer', 'payment'])
+            ->where('order_number', 'like', '%' . $this->search . '%')
+            ->where('branch_id', auth()->user()->branch_id);
+
+        if ($this->statusFilter !== 'all') {
+            $query->whereHas('payment', function($q) {
+                $q->where('payment_status', $this->statusFilter);
+            });
+        }
+
+        if ($this->schemeFilter !== 'all') {
+            $query->whereHas('payment', function($q) {
+                $q->where('payment_scheme', $this->schemeFilter);
+            });
+        }
+
+        if ($this->methodFilter !== 'all') {
+            $query->whereHas('payment', function($q) {
+                $q->where('payment_method', $this->methodFilter);
+            });
+        }
+
+        if ($this->startDate) {
+            $query->whereDate('created_at', '>=', $this->startDate);
+        }
+
+        if ($this->endDate) {
+            $query->whereDate('created_at', '<=', $this->endDate);
+        }
+
         return [
-            'quotations' => Order::query()
-                ->withCount('order_items')
-                ->where('order_number', 'like', '%' . $this->search . '%')
-                ->where('branch_id', auth()->user()->branch_id)
-                ->latest()
-                ->paginate(10),
+            'quotations' => $query->latest()->paginate(10),
+            'statusCounts' => [
+                'all' => Order::where('branch_id', auth()->user()->branch_id)->count(),
+                'paid' => Order::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('payment', fn($q) => $q->where('payment_status', 'paid'))->count(),
+                'pending' => Order::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('payment', fn($q) => $q->where('payment_status', 'pending'))->count(),
+                'partial' => Order::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('payment', fn($q) => $q->where('payment_status', 'partial'))->count(),
+                'cancelled' => Order::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('payment', fn($q) => $q->where('payment_status', 'cancelled'))->count(),
+            ],
+            'schemeCounts' => [
+                'all' => Order::where('branch_id', auth()->user()->branch_id)->count(),
+                'full-payment' => Order::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('payment', fn($q) => $q->where('payment_scheme', 'full-payment'))->count(),
+                'partial-payment' => Order::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('payment', fn($q) => $q->where('payment_scheme', 'partial-payment'))->count(),
+            ],
+            'methodCounts' => [
+                'all' => Order::where('branch_id', auth()->user()->branch_id)->count(),
+                'cash' => Order::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'cash'))->count(),
+                'credit' => Order::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'credit'))->count(),
+                'gcash' => Order::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'gcash'))->count(),
+                'bank-transfer' => Order::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'bank-transfer'))->count(),
+                'returned' => Order::where('branch_id', auth()->user()->branch_id)
+                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'returned'))->count(),
+            ]
         ];
     }
 };
@@ -140,7 +209,116 @@ new class extends Component {
                 <input wire:model.live="search" type="search" placeholder="Search quotations..."
                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
             </div>
+
+            <div class="flex items-center space-x-2">
+                <button wire:click="resetFilters"
+                    class="inline-flex items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-700 px-4 py-2 text-sm font-semibold text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600">
+                    Reset Filters
+                </button>
+                <a href="{{ route('pos') }}"
+                    class="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 dark:bg-green-500 dark:hover:bg-green-600">
+                    Create Quotation
+                </a>
+            </div>
         </div>
+
+        <!-- Filter Section -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Status Filter -->
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Payment Status</h3>
+                <div class="flex flex-wrap gap-1">
+                    <button wire:click="$set('statusFilter', 'all')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'all' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        All ({{ $statusCounts['all'] }})
+                    </button>
+                    <button wire:click="$set('statusFilter', 'paid')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'paid' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Paid ({{ $statusCounts['paid'] }})
+                    </button>
+                    <button wire:click="$set('statusFilter', 'pending')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Pending ({{ $statusCounts['pending'] }})
+                    </button>
+                    <button wire:click="$set('statusFilter', 'partial')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'partial' ? 'bg-purple-100 dark:bg-purple-900 border-purple-300 dark:border-purple-700 text-purple-800 dark:text-purple-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Partial ({{ $statusCounts['partial'] }})
+                    </button>
+                    <button wire:click="$set('statusFilter', 'cancelled')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'cancelled' ? 'bg-red-100 dark:bg-red-900 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Cancelled ({{ $statusCounts['cancelled'] }})
+                    </button>
+                </div>
+            </div>
+
+            <!-- Payment Scheme Filter -->
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Payment Scheme</h3>
+                <div class="flex flex-wrap gap-1">
+                    <button wire:click="$set('schemeFilter', 'all')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $schemeFilter === 'all' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        All ({{ $schemeCounts['all'] }})
+                    </button>
+                    <button wire:click="$set('schemeFilter', 'full-payment')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $schemeFilter === 'full-payment' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Full Payment ({{ $schemeCounts['full-payment'] }})
+                    </button>
+                    <button wire:click="$set('schemeFilter', 'partial-payment')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $schemeFilter === 'partial-payment' ? 'bg-purple-100 dark:bg-purple-900 border-purple-300 dark:border-purple-700 text-purple-800 dark:text-purple-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Partial Payment ({{ $schemeCounts['partial-payment'] }})
+                    </button>
+                </div>
+            </div>
+
+            <!-- Payment Method Filter -->
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Payment Method</h3>
+                <div class="flex flex-wrap gap-1">
+                    <button wire:click="$set('methodFilter', 'all')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'all' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        All ({{ $methodCounts['all'] }})
+                    </button>
+                    <button wire:click="$set('methodFilter', 'cash')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'cash' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Cash ({{ $methodCounts['cash'] }})
+                    </button>
+                    <button wire:click="$set('methodFilter', 'credit')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'credit' ? 'bg-yellow-100 dark:bg-yellow-900 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Credit ({{ $methodCounts['credit'] }})
+                    </button>
+                    <button wire:click="$set('methodFilter', 'gcash')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'gcash' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        GCash ({{ $methodCounts['gcash'] }})
+                    </button>
+                    <button wire:click="$set('methodFilter', 'bank-transfer')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'bank-transfer' ? 'bg-indigo-100 dark:bg-indigo-900 border-indigo-300 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Bank Transfer ({{ $methodCounts['bank-transfer'] }})
+                    </button>
+                    <button wire:click="$set('methodFilter', 'returned')"
+                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'returned' ? 'bg-red-100 dark:bg-red-900 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Returned ({{ $methodCounts['returned'] }})
+                    </button>
+                </div>
+            </div>
+
+            <!-- Date Range Filter -->
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date Range</h3>
+                <div class="grid grid-cols-1 gap-2">
+                    <div>
+                        <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">From</label>
+                        <input type="date" wire:model.live="startDate"
+                            class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">To</label>
+                        <input type="date" wire:model.live="endDate"
+                            class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
+                    </div>
+                </div>
+            </div>
+        </div>
+
         @if ($quotations->isEmpty())
             <div class="flex flex-col items-center justify-center p-8">
                 <p class="mb-4 text-gray-500 dark:text-gray-400">No quotations found</p>
@@ -156,13 +334,6 @@ new class extends Component {
                 </a>
             </div>
         @else
-            <div class="flex justify-end">
-                <a href="{{ route('pos') }}"
-                    class="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 dark:bg-green-500 dark:hover:bg-green-600">
-                    Create Quotation
-                </a>
-            </div>
-
             <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -191,7 +362,7 @@ new class extends Component {
                                     Payment Scheme</th>
                                 <th
                                     class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Payment Status</th>
+                                    Status</th>
                                 <th
                                     class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                     Order Items</th>
@@ -221,12 +392,25 @@ new class extends Component {
                                         {{ strtoupper($quotation->payment->payment_method ?? '') }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                         {{ strtoupper($quotation->payment->payment_scheme ?? '') }}</td>
-                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                        {{ strtoupper($quotation->payment->payment_status ?? '') }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 text-center">
+                                        @php
+                                            $status = strtolower($quotation->payment->payment_status ?? '');
+                                            $statusClasses = [
+                                                'paid' => 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200',
+                                                'pending' => 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200',
+                                                'partial' => 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200',
+                                                'cancelled' => 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200',
+                                            ];
+                                            $class = $statusClasses[$status] ?? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
+                                        @endphp
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full {{ $class }}">
+                                            {{ strtoupper($status) }}
+                                        </span>
+                                    </td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                         {{ $quotation->order_items_count ?? '' }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                        {{ $quotation->created_at ?? '' }}</td>
+                                        {{ $quotation->created_at->format('M d, Y h:i A') }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 space-x-2">
                                         @can('quotations.edit')
                                             <a href="{{ route('pos.edit', $quotation->id) }}"
