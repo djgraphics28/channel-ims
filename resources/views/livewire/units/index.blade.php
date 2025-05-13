@@ -35,11 +35,6 @@ new class extends Component {
         $this->showModal = true;
     }
 
-    public function updatingSearch()
-    {
-        $this->resetPage();
-    }
-
     public function edit(Unit $unit)
     {
         $this->unit = $unit;
