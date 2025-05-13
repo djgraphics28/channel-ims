@@ -255,15 +255,14 @@ new class extends Component {
             <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                 <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Payment Status</h3>
                 <div class="flex flex-wrap gap-1">
-                    <button wire:click="$set('statusFilter', 'all')"
-                        class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'all' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                    <button wire:click="$set('statusFilter', 'all'), $resetPage()" class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'all' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         All ({{ $statusCounts['all'] }})
                     </button>
-                    <button wire:click="$set('statusFilter', 'paid')"
+                    <button wire:click="$set('statusFilter', 'paid'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'paid' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Paid ({{ $statusCounts['paid'] }})
                     </button>
-                    <button wire:click="$set('statusFilter', 'not-paid')"
+                    <button wire:click="$set('statusFilter', 'not-paid'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'not-paid' ? 'bg-yellow-100 dark:bg-yellow-900 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Not-Paid ({{ $statusCounts['not-paid'] }})
                     </button>
@@ -282,15 +281,15 @@ new class extends Component {
             <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                 <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Payment Scheme</h3>
                 <div class="flex flex-wrap gap-1">
-                    <button wire:click="$set('schemeFilter', 'all')"
+                    <button wire:click="$set('schemeFilter', 'all'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $schemeFilter === 'all' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         All ({{ $schemeCounts['all'] }})
                     </button>
-                    <button wire:click="$set('schemeFilter', 'full-payment')"
+                    <button wire:click="$set('schemeFilter', 'full-payment'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $schemeFilter === 'full-payment' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Full Payment ({{ $schemeCounts['full-payment'] }})
                     </button>
-                    <button wire:click="$set('schemeFilter', 'partial-payment')"
+                    <button wire:click="$set('schemeFilter', 'partial-payment'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $schemeFilter === 'partial-payment' ? 'bg-purple-100 dark:bg-purple-900 border-purple-300 dark:border-purple-700 text-purple-800 dark:text-purple-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Partial Payment ({{ $schemeCounts['partial-payment'] }})
                     </button>
@@ -301,27 +300,27 @@ new class extends Component {
             <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                 <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Payment Method</h3>
                 <div class="flex flex-wrap gap-1">
-                    <button wire:click="$set('methodFilter', 'all')"
+                    <button wire:click="$set('methodFilter', 'all'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'all' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         All ({{ $methodCounts['all'] }})
                     </button>
-                    <button wire:click="$set('methodFilter', 'cash')"
+                    <button wire:click="$set('methodFilter', 'cash'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'cash' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Cash ({{ $methodCounts['cash'] }})
                     </button>
-                    <button wire:click="$set('methodFilter', 'cod')"
+                    <button wire:click="$set('methodFilter', 'cod'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'cod' ? 'bg-yellow-100 dark:bg-yellow-900 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         COD ({{ $methodCounts['cod'] }})
                     </button>
-                    <button wire:click="$set('methodFilter', 'sign')"
+                    <button wire:click="$set('methodFilter', 'sign'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'sign' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Sign ({{ $methodCounts['sign'] }})
                     </button>
-                    <button wire:click="$set('methodFilter', 'refund')"
+                    <button wire:click="$set('methodFilter', 'refund'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'refund' ? 'bg-indigo-100 dark:bg-indigo-900 border-indigo-300 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Refund ({{ $methodCounts['refund'] }})
                     </button>
-                    <button wire:click="$set('methodFilter', 'returned')"
+                    <button wire:click="$set('methodFilter', 'returned'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'returned' ? 'bg-red-100 dark:bg-red-900 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Returned ({{ $methodCounts['returned'] }})
                     </button>
