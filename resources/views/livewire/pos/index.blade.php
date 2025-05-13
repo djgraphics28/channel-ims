@@ -140,6 +140,25 @@ new class extends Component {
         }
 
         $dateQuery = Order::where('branch_id', auth()->user()->branch_id);
+
+        if ($this->statusFilter !== 'all') {
+            $dateQuery->whereHas('payment', function($q) {
+                $q->where('payment_status', $this->statusFilter);
+            });
+        }
+
+        if ($this->schemeFilter !== 'all') {
+            $dateQuery->whereHas('payment', function($q) {
+                $q->where('payment_scheme', $this->schemeFilter);
+            });
+        }
+
+        if ($this->methodFilter !== 'all') {
+            $dateQuery->whereHas('payment', function($q) {
+                $q->where('payment_method', $this->methodFilter);
+            });
+        }
+
         if ($this->startDate) {
             $dateQuery->whereDate('created_at', '>=', $this->startDate);
         }
