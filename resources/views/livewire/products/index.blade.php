@@ -219,9 +219,9 @@ new class extends Component {
                 'branch_id' => auth()->user()->branch_id,
             ]);
 
-            if ($this->image) {
-                $product->addMedia($this->image->getRealPath())->toMediaCollection('product_images');
-            }
+            // if ($this->image) {
+            //     $product->addMedia($this->image->getRealPath())->toMediaCollection('product_images');
+            // }
 
             flash()->success('Product created successfully!');
         }
