@@ -748,6 +748,10 @@ new class extends Component {
                         <span><small>Payment Status: {{ strtoupper($paymentStatus) }}</small></span>
                     </div>
                 </div>
+                <br>
+                <br>
+                <br>
+                <p class="text-sm dark:text-gray-300 text-right"><strong>Receipt #: {{ $receiptNumber }}</strong></p>
 
                 <!-- Buttons -->
                 <div class="mt-4 flex justify-end gap-2 print:hidden">
