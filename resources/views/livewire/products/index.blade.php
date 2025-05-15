@@ -479,12 +479,12 @@ new class extends Component {
                                 </th>
                                 <th
                                     class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Name
+                                    Description
                                 </th>
-                                <th
+                                {{-- <th
                                     class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                    Category
-                                </th>
+                                    Description 2
+                                </th> --}}
                                 <th
                                     class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                     Unit
@@ -531,9 +531,9 @@ new class extends Component {
                                             </p>
                                         </div>
                                     </td>
-                                    <td class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                    {{-- <td class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
                                         {{ $product->category->name ?? 'not yet set' }}
-                                    </td>
+                                    </td> --}}
                                     <td class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
                                         {{ $product->unit->name ?? 'not yet set' }}
                                     </td>

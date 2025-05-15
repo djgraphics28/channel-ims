@@ -175,7 +175,7 @@ new class extends Component {
     public function calculateTotal()
     {
         $this->total = collect($this->cart)->sum(function ($item) {
-            return $item['price'] * $item['quantity'];
+            return $item['price'] * (float)$item['quantity'] ?? 0;
         });
     }
 
@@ -472,13 +472,19 @@ new class extends Component {
                                             <div class="flex items-center justify-end gap-2">
                                                 <button wire:click="updateQuantity({{ $productId }}, -1)"
                                                     class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">-</button>
-                                                <input type="number"
-                                                    wire:model.live="cart.{{ $productId }}.quantity" min="1"
+                                               <input type="number"
+                                                    wire:model.live="cart.{{ $productId }}.quantity"
                                                     wire:keydown="calculateTotal"
+                                                    min="0"
+                                                    step="0.01"
                                                     max="{{ $item['quantity'] }}"
                                                     class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 border border-gray-300 rounded-lg px-2 py-1"
-                                                    value="{{ $item['quantity'] }}"
-                                                    oninput="if(this.value < 1) this.value = 1" /> <button
+                                                    value="{{ $item['quantity'] ?? 0 }}"
+                                                    onfocus="selectIfZero(this)"
+                                                    onkeydown="handleZeroBackspace(event, this)"
+                                                    oninput="validateDecimal(this)" />
+
+                                                    <button
                                                     wire:click="updateQuantity({{ $productId }}, 1)"
                                                     class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">+</button>
                                             </div>
@@ -838,3 +844,46 @@ new class extends Component {
         }, 500);
     });
 </script>
+
+<script>
+    let autoInsertedZero = false;
+
+    function handleZeroBackspace(event, input) {
+        if (event.key === 'Backspace' && input.value === '') {
+            input.value = '0';
+            autoInsertedZero = true;
+            event.preventDefault();
+        }
+    }
+
+    function selectIfZero(input) {
+        if (autoInsertedZero && input.value === '0') {
+            input.select();
+        }
+    }
+
+    function validateDecimal(input) {
+        // Only allow numbers and decimal points
+        const value = input.value;
+
+        // Prevent multiple decimals
+        if ((value.match(/\./g) || []).length > 1) {
+            input.value = value.slice(0, -1); // remove last character
+            return;
+        }
+
+        // Prevent negative or non-number
+        const num = parseFloat(value);
+        if (isNaN(num) || num < 0) {
+            input.value = '0';
+            return;
+        }
+
+        // Reset autofill tracker
+        autoInsertedZero = false;
+    }
+</script>
+
+
+
+
