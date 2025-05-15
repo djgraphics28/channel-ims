@@ -293,6 +293,8 @@ new class extends Component {
             'categories' => Category::all(),
             'products' => Product::query()
                 ->where('name', 'like', '%' . $this->search . '%')
+                ->orWhere('code', 'like', '%' . $this->search . '%')
+                ->orWhere('description', 'like', '%' . $this->search . '%')
                 ->when($this->selectedCategory, function ($query) {
                     return $query->where('category_id', $this->selectedCategory);
                 })
