@@ -72,7 +72,7 @@ new class extends Component {
                 'name' => $item->product->name,
                 'unit' => $item->product->unit->name ?? 'pc',
                 'price' => $item->price,
-                'quantity' => $item->quantity,
+                'quantity' => fmod($item->quantity, 1) ? $item->quantity : (int)$item->quantity,
             ];
         }
 
