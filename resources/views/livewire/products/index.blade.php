@@ -479,6 +479,10 @@ new class extends Component {
                                 </th>
                                 <th
                                     class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Product Name
+                                </th>
+                                <th
+                                    class="px-4 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                     Description
                                 </th>
                                 {{-- <th
@@ -530,6 +534,9 @@ new class extends Component {
                                                 <strong>₱{{ $product->selling_price }}</strong>
                                             </p>
                                         </div>
+                                    </td>
+                                     <td class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
+                                        {{ $product->description }}
                                     </td>
                                     {{-- <td class="hidden sm:table-cell px-4 sm:px-6 py-2 sm:py-4 dark:text-gray-300 text-sm">
                                         {{ $product->category->name ?? 'not yet set' }}
@@ -681,7 +688,7 @@ new class extends Component {
                                 @enderror
                             </div>
                             <div class="mb-4">
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
                                 <input wire:model="name" type="text"
                                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
                                 @error('name')
