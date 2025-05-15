@@ -431,7 +431,7 @@ new class extends Component {
                                                     min="0"
                                                     step="0.01"
                                                     max="{{ $item['quantity'] }}"
-                                                    class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 border border-gray-300 rounded-lg px-2 py-1"
+                                                    class="text-center dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 border border-gray-300 rounded-lg px-2 py-1"
                                                     value="{{ $item['quantity'] ?? 0 }}"
                                                     onfocus="selectIfZero(this)"
                                                     onkeydown="handleZeroBackspace(event, this)"
