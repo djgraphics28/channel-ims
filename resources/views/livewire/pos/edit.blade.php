@@ -394,7 +394,7 @@ new class extends Component {
                                 @endif
                             </div>
                             <h3 class="text-lg font-semibold dark:text-white mt-2 truncate">{{ $product->name }}</h3>
-                            <span class="dark:text-gray-300 text-sm">{{ $product->code }}</span>
+                            <span class="dark:text-gray-300 text-sm">{{ $product->description }}</span>
                         </div>
                     @endforeach
                 </div>
