@@ -4,7 +4,7 @@ use Livewire\Volt\Component;
 use Livewire\WithPagination;
 use App\Models\Order;
 use App\Models\Customer;
-use App\Models\User;
+use App\Models\Employee;
 use Livewire\Attributes\Title;
 
 new class extends Component {
@@ -538,7 +538,7 @@ new class extends Component {
                     </div>
 
                     <div class="flex justify-end">
-                        <small>Server: {{ User::find($server)?->name ?? '-----' }}</small>
+                        <small>Server: {{ Employee::find($server)?->first_name ?? '-----' }}</small>
                     </div>
                 </div>
 

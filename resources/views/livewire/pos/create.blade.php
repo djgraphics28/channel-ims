@@ -71,7 +71,7 @@ new class extends Component {
             'paymentStatus' => 'required',
             'paymentMethod' => 'required',
             'partialPaymentAmount' => 'required_if:paymentScheme,partial-payment|numeric|min:0',
-            // 'server' => 'required',
+            'server' => 'required',
         ];
     }
 
@@ -162,6 +162,7 @@ new class extends Component {
 
     public function checkout()
     {
+
         $this->validate();
         if (empty($this->cart)) {
             $this->dispatch('notify', 'Cart is empty!', 'error');

@@ -647,7 +647,7 @@ new class extends Component {
                     </div>
 
                     <div class="flex justify-end">
-                        <small>Server: {{ User::find($server)?->name ?? '-----' }}</small>
+                        <small>Server: {{ Employee::find($server)?->first_name ?? '-----' }}</small>
                     </div>
                 </div>
 
