@@ -209,7 +209,7 @@ new class extends Component {
                 'customer_id' => $this->customerSelected,
                 'created_by' => Auth::id(),
                 'assisted_by' => $this->server,
-                'total_amount' => $this->total,
+                'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
                 'tax' => $this->tax,
                 'discount' => $this->discount,
                 'notes' => $this->notes,

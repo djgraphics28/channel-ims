@@ -199,8 +199,8 @@ new class extends Component {
                 'customer_id' => $this->customerSelected,
                 'created_by' => Auth::user()->id,
                 'assisted_by' => $this->server,
-                'total_amount' => $this->total,
-                'tax' => $this->tax,
+                'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
+                 'tax' => $this->tax,
                 'discount' => $this->discount,
                 'notes' => $this->notes,
                 'branch_id' => auth()->user()->branch_id,
@@ -600,7 +600,7 @@ new class extends Component {
                     </div>
 
                     <div class="flex justify-end">
-                        <small>Server: {{ User::find($server)?->name ?? '-----' }}</small>
+                        <small>Server: {{ Employee::find($server)?->first_name ?? '-----' }}</small>
                     </div>
                 </div>
 

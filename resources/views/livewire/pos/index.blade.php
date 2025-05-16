@@ -376,6 +376,9 @@ new class extends Component {
                                     Amount</th>
                                 <th
                                     class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Amount Paid</th>
+                                <th
+                                    class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                     Partial Payment</th>
                                 <th
                                     class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -408,10 +411,11 @@ new class extends Component {
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
                                         {{ strtoupper($quotation->customer->name ?? '') }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                        ₱{{ number_format($quotation->total_amount, 2) }}</td>
+                                        ₱{{ number_format($quotation->total_amount, 2)  }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                         ₱{{ number_format($quotation->payment->amount_paid, 2) ?? '' }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+    ₱{{ $quotation->payment->payment_scheme == 'full-payment' ? '0.00' : number_format($quotation->payment->amount_paid, 2) ?? '' }}</td>                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                         ₱{{ number_format($quotation->total_amount - $quotation->payment->amount_paid, 2) ?? 0 }}
                                     </td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
