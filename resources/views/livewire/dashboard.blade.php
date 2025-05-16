@@ -113,7 +113,7 @@ new class extends Component {
         // Daily metrics
         $dailySalesQuery = (clone $paymentQuery)->whereDate('created_at', today());
         $dailySales = $dailySalesQuery->sum('amount_paid');
-        //i want to have a separate $dailySales for each Branches
+        $dailySalesForCoh = (clone $dailySalesQuery)->whereNotIn('payment_method', ['cod', 'sign'])->sum('amount_paid');        //i want to have a separate $dailySales for each Branches
         $branchSales = collect($this->branches)
             ->map(function ($branch) use ($dailySalesQuery) {
                 return [
@@ -154,7 +154,7 @@ new class extends Component {
 
         $totalMoneyIn = $cashFlowQuery->clone()->where('type', 'in')->sum('amount');
         $totalMoneyOut = $cashFlowQuery->clone()->where('type', 'out')->sum('amount');
-        $cashOnHand = $dailySales + $totalMoneyIn - $totalMoneyOut;
+        $cashOnHand = $dailySalesForCoh + $totalMoneyIn - $totalMoneyOut;
 
         // Customers count (assuming customers have branch_id)
         $totalCustomers = Customer::all()->count();
