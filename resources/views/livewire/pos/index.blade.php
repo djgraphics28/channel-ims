@@ -44,6 +44,11 @@ new class extends Component {
         $this->confirmingDelete = true;
     }
 
+    public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+
     public function delete()
     {
         $quotation = Order::find($this->quotationToDelete);
