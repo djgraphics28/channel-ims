@@ -10,6 +10,7 @@ use Livewire\Attributes\Title;
 new class extends Component {
     use WithPagination;
 
+    public $perPage = 10;
     public $search = '';
     public $showModal = false;
     public $quotation;
@@ -177,7 +178,7 @@ new class extends Component {
         }
 
         return [
-            'quotations' => $query->latest()->paginate(10),
+            'quotations' => $query->latest()->paginate($this->perPage),
             'statusCounts' => [
                 'all' => $dateQuery->count(),
                 'paid' => (clone $dateQuery)
@@ -248,6 +249,36 @@ new class extends Component {
             </div>
 
             <div class="flex items-center space-x-2">
+                {{-- <div class="relative">
+                    <button id="dropdownBulkActionButton" data-dropdown-toggle="dropdownBulkAction" type="button" class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600" x-data @click="$dispatch('toggle-dropdown')">
+                        Bulk Actions
+                        <svg class="w-4 h-4 ml-2" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    <div id="dropdownBulkAction" class="absolute right-0 mt-2 z-10 hidden bg-white divide-y divide-gray-100 rounded-lg shadow w-44 dark:bg-gray-700 dark:divide-gray-600" x-show="open" @click.away="open = false">
+                        <ul class="py-2 text-sm text-gray-700 dark:text-gray-200" aria-labelledby="dropdownBulkActionButton">
+                            <li>
+                                <button wire:click="exportExcel" class="block w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">
+                                    <i class="fas fa-file-excel mr-2"></i> Export Excel
+                                </button>
+                            </li>
+                            <li>
+                                <button wire:click="printSelected" class="block w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">
+                                    <i class="fas fa-print mr-2"></i> Print Selected
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </div> --}}
+                <select wire:model.live="perPage" class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
+                    <option value="5">5 rows</option>
+                    <option value="10">10 rows</option>
+                    <option value="25">25 rows</option>
+                    <option value="50">50 rows</option>
+                    <option value="100">100 rows</option>
+                    <option value="500">500 rows</option>
+                </select>
                 <button wire:click="resetFilters"
                     class="inline-flex items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-700 px-4 py-2 text-sm font-semibold text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600">
                     Reset Filters
