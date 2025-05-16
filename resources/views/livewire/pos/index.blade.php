@@ -110,7 +110,12 @@ new class extends Component {
         $query = Order::query()
             ->withCount('order_items')
             ->with(['customer', 'payment'])
-            ->where('order_number', 'like', '%' . $this->search . '%')
+            ->where(function($q) {
+                $q->where('order_number', 'like', '%' . $this->search . '%')
+                  ->orWhereHas('customer', function($q) {
+                      $q->where('name', 'like', '%' . $this->search . '%');
+                  });
+            })
             ->where('branch_id', auth()->user()->branch_id);
 
         if ($this->statusFilter !== 'all') {
@@ -415,7 +420,8 @@ new class extends Component {
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                         ₱{{ number_format($quotation->payment->amount_paid, 2) ?? '' }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-    ₱{{ $quotation->payment->payment_scheme == 'full-payment' ? '0.00' : number_format($quotation->payment->amount_paid, 2) ?? '' }}</td>                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
+                                        ₱{{ $quotation->payment->payment_scheme == 'full-payment' ? '0.00' : number_format($quotation->payment->amount_paid, 2) ?? '' }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                         ₱{{ number_format($quotation->total_amount - $quotation->payment->amount_paid, 2) ?? 0 }}
                                     </td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
