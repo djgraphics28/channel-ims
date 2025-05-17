@@ -203,6 +203,7 @@ new class extends Component {
 
     public function confirmAndPrint()
     {
+        // First find or create the order
         $order = Order::updateOrCreate(
             ['order_number' => $this->receiptNumber],
             [
@@ -216,6 +217,7 @@ new class extends Component {
             ],
         );
 
+        // Handle payment
         $order->payment()->updateOrCreate(
             ['order_id' => $order->id],
             [
@@ -227,47 +229,121 @@ new class extends Component {
             ],
         );
 
-        // Get old order with order items
-        $oldOrder = Order::with('order_items')->find($this->orderId);
+        // If this is an update (orderId exists and is different from the new order)
+        if ($this->orderId && $this->orderId != $order->id) {
+            $oldOrder = Order::with('order_items')->find($this->orderId);
 
-        // First increment the product stocks from old order items
-        if ($oldOrder) {
-            foreach ($oldOrder->order_items as $item) {
-                $product = Product::find($item->product_id);
-
-                if ($product && $product->product_stock) {
-                    $product->product_stock->increment('stock', $item->quantity);
+            // Return stock from old order items
+            if ($oldOrder) {
+                foreach ($oldOrder->order_items as $item) {
+                    $product = Product::find($item->product_id);
+                    if ($product && $product->product_stock) {
+                        $product->product_stock->increment('stock', $item->quantity);
+                    }
                 }
+
+                // Delete old order items but keep the order record
+                $oldOrder->order_items()->delete();
+
+                // Optionally mark old order as cancelled or updated
+                $oldOrder->update(['status' => 'updated']); // or 'cancelled'
             }
         }
 
-        //remove all order_items
-        $oldOrder->order_items()->delete();
+        // Clear existing items for the current order (if any)
+        $order->order_items()->delete();
 
-        // Update new order items and decrement stock
+        // Add new order items and decrement stock
         foreach ($this->cart as $productId => $item) {
             $product = Product::find($productId);
             if ($product) {
-                $product->product_stock->decrement('stock', $item['quantity']);
+                // Decrement stock only if product exists
+                if ($product->product_stock) {
+                    $product->product_stock->decrement('stock', $item['quantity']);
+                }
 
-                $order->order_items()->updateOrCreate(
-                    [
-                        'product_id' => $productId,
-                        'order_id' => $order->id,
-                    ],
-                    [
-                        'quantity' => $item['quantity'],
-                        'price' => $item['price'],
-                        'subtotal' => $item['quantity'] * $item['price'],
-                    ],
-                );
+                $order->order_items()->create([
+                    'product_id' => $productId,
+                    'quantity' => $item['quantity'],
+                    'price' => $item['price'],
+                    'subtotal' => $item['quantity'] * $item['price'],
+                ]);
             }
         }
-        flash()->success('Quotation updated successfully!');
+
+        flash()->success('Quotation processed successfully!');
         $this->dispatch('print-receipt');
         $this->receiptModal = false;
         $this->resetCart();
     }
+
+    // public function confirmAndPrint()
+    // {
+    //     $order = Order::updateOrCreate(
+    //         ['order_number' => $this->receiptNumber],
+    //         [
+    //             'customer_id' => $this->customerSelected,
+    //             'created_by' => Auth::id(),
+    //             'assisted_by' => $this->server,
+    //             'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
+    //             'tax' => $this->tax,
+    //             'discount' => $this->discount,
+    //             'notes' => $this->notes,
+    //         ],
+    //     );
+
+    //     $order->payment()->updateOrCreate(
+    //         ['order_id' => $order->id],
+    //         [
+    //             'amount_paid' => $this->paymentScheme == 'partial-payment' ? $this->partialPaymentAmount : $this->total + $this->total * ($this->tax / 100) - $this->discount,
+    //             'payment_method' => $this->paymentMethod,
+    //             'payment_scheme' => $this->paymentScheme,
+    //             'payment_status' => $this->paymentStatus,
+    //             'notes' => $this->notes,
+    //         ],
+    //     );
+
+    //     // Get old order with order items
+    //     $oldOrder = Order::with('order_items')->find($this->orderId);
+
+    //     // First increment the product stocks from old order items
+    //     if ($oldOrder) {
+    //         foreach ($oldOrder->order_items as $item) {
+    //             $product = Product::find($item->product_id);
+
+    //             if ($product && $product->product_stock) {
+    //                 $product->product_stock->increment('stock', $item->quantity);
+    //             }
+    //         }
+    //     }
+
+    //     //remove all order_items
+    //     $oldOrder->order_items()->delete();
+
+    //     // Update new order items and decrement stock
+    //     foreach ($this->cart as $productId => $item) {
+    //         $product = Product::find($productId);
+    //         if ($product) {
+    //             $product->product_stock->decrement('stock', $item['quantity']);
+
+    //             $order->order_items()->updateOrCreate(
+    //                 [
+    //                     'product_id' => $productId,
+    //                     'order_id' => $order->id,
+    //                 ],
+    //                 [
+    //                     'quantity' => $item['quantity'],
+    //                     'price' => $item['price'],
+    //                     'subtotal' => $item['quantity'] * $item['price'],
+    //                 ],
+    //             );
+    //         }
+    //     }
+    //     flash()->success('Quotation updated successfully!');
+    //     $this->dispatch('print-receipt');
+    //     $this->receiptModal = false;
+    //     $this->resetCart();
+    // }
 
     protected function resetCart()
     {
