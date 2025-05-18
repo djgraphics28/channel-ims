@@ -181,53 +181,124 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
     }
 
     public function registerEvents(): array
-    {
-        return [
-            AfterSheet::class => function(AfterSheet $event) {
-                $sheet = $event->sheet;
-                $lastRow = $sheet->getHighestRow();
+{
+    return [
+        AfterSheet::class => function(AfterSheet $event) {
+            $sheet = $event->sheet;
+            $lastRow = $sheet->getHighestRow();
 
-                // Add Total row
-                $totalRow = $lastRow + 1;
-                $sheet->setCellValue('D' . $totalRow, 'TOTAL:');
-                $sheet->setCellValue('E' . $totalRow, $this->totalAmount);
+            // Add Total row
+            $totalRow = $lastRow + 1;
 
-                // Merge cells for label
-                $sheet->mergeCells('D' . $totalRow . ':E' . $totalRow);
+            // Label in column D
+            $sheet->setCellValue('D' . $totalRow, 'TOTAL:');
 
-                // Style the Total row
-                $sheet->getStyle('D' . $totalRow . ':E' . $totalRow)->applyFromArray([
-                    'font' => [
-                        'bold' => true,
-                        'size' => 12,
-                        'color' => ['rgb' => 'FFFFFF']
-                    ],
-                    'alignment' => [
-                        'horizontal' => Alignment::HORIZONTAL_RIGHT,
-                    ],
-                    'fill' => [
-                        'fillType' => Fill::FILL_SOLID,
-                        'startColor' => ['rgb' => '4472C4']
-                    ],
-                    'borders' => [
-                        'allBorders' => [
-                            'borderStyle' => Border::BORDER_THIN,
-                            'color' => ['rgb' => '000000']
-                        ]
-                    ],
-                    'numberFormat' => [
-                        'formatCode' => '"₱"#,##0.00'
-                    ]
-                ]);
+            // Value in column E (with Peso sign formatting)
+            $sheet->setCellValue('E' . $totalRow, $this->totalAmount);
 
-                // Adjust column widths after adding total
-                foreach (range('A', 'E') as $column) {
-                    $sheet->getColumnDimension($column)->setAutoSize(true);
-                }
+            // Style the label cell
+            $sheet->getStyle('D' . $totalRow)->applyFromArray([
+                'font' => [
+                    'bold' => true,
+                    'size' => 12,
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_RIGHT,
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '4472C4']
+                ],
+                'borders' => [
+                    'top' => ['borderStyle' => Border::BORDER_THIN],
+                    'bottom' => ['borderStyle' => Border::BORDER_THIN],
+                    'left' => ['borderStyle' => Border::BORDER_THIN],
+                ]
+            ]);
 
-                // Set print area to include the total row
-                $sheet->getPageSetup()->setPrintArea('A1:E' . $totalRow);
+            // Style the value cell
+            $sheet->getStyle('E' . $totalRow)->applyFromArray([
+                'font' => [
+                    'bold' => true,
+                    'size' => 12,
+                    'color' => ['rgb' => 'FFFFFF']
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_RIGHT,
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '4472C4']
+                ],
+                'borders' => [
+                    'top' => ['borderStyle' => Border::BORDER_THIN],
+                    'bottom' => ['borderStyle' => Border::BORDER_THIN],
+                    'right' => ['borderStyle' => Border::BORDER_THIN],
+                ],
+                'numberFormat' => [
+                    'formatCode' => '"₱"#,##0.00'
+                ]
+            ]);
+
+            // Adjust column widths after adding total
+            foreach (range('A', 'E') as $column) {
+                $sheet->getColumnDimension($column)->setAutoSize(true);
             }
-        ];
-    }
+
+            // Set print area to include the total row
+            $sheet->getPageSetup()->setPrintArea('A1:E' . $totalRow);
+        }
+    ];
+}
+
+    // public function registerEvents(): array
+    // {
+    //     return [
+    //         AfterSheet::class => function(AfterSheet $event) {
+    //             $sheet = $event->sheet;
+    //             $lastRow = $sheet->getHighestRow();
+
+    //             // Add Total row
+    //             $totalRow = $lastRow + 1;
+    //             $sheet->setCellValue('D' . $totalRow, 'TOTAL:');
+    //             $sheet->setCellValue('E' . $totalRow, $this->totalAmount);
+
+    //             // Merge cells for label
+    //             $sheet->mergeCells('D' . $totalRow . ':E' . $totalRow);
+
+    //             // Style the Total row
+    //             $sheet->getStyle('D' . $totalRow . ':E' . $totalRow)->applyFromArray([
+    //                 'font' => [
+    //                     'bold' => true,
+    //                     'size' => 12,
+    //                     'color' => ['rgb' => 'FFFFFF']
+    //                 ],
+    //                 'alignment' => [
+    //                     'horizontal' => Alignment::HORIZONTAL_RIGHT,
+    //                 ],
+    //                 'fill' => [
+    //                     'fillType' => Fill::FILL_SOLID,
+    //                     'startColor' => ['rgb' => '4472C4']
+    //                 ],
+    //                 'borders' => [
+    //                     'allBorders' => [
+    //                         'borderStyle' => Border::BORDER_THIN,
+    //                         'color' => ['rgb' => '000000']
+    //                     ]
+    //                 ],
+    //                 'numberFormat' => [
+    //                     'formatCode' => '"₱"#,##0.00'
+    //                 ]
+    //             ]);
+
+    //             // Adjust column widths after adding total
+    //             foreach (range('A', 'E') as $column) {
+    //                 $sheet->getColumnDimension($column)->setAutoSize(true);
+    //             }
+
+    //             // Set print area to include the total row
+    //             $sheet->getPageSetup()->setPrintArea('A1:E' . $totalRow);
+    //         }
+    //     ];
+    // }
 }
