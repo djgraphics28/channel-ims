@@ -32,6 +32,9 @@ Route::middleware(['auth', 'check.active'])->group(function () {
     Volt::route('cashflows', 'cashflow.index')->name('cashflows');
     Volt::route('employees', 'employees.index')->name('employees');
 
+    Volt::route('sales-report', 'reports.sales')->name('sales.report');
+    Volt::route('expenses-report', 'reports.expenses')->name('expenses.report');
+
 });
 
 //product updater

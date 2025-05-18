@@ -50,8 +50,8 @@
                     @endcan
                     @can('reports.view')
                     <flux:navlist.group expandable heading="Reports" class="hidden lg:grid">
-                        <flux:navlist.item  icon="chart-bar" href="#">Sales Report</flux:navlist.item>
-                        <flux:navlist.item  icon="document" href="#">Expenses Report</flux:navlist.item>
+                        <flux:navlist.item  icon="chart-bar" :href="route('sales.report')">Sales Report</flux:navlist.item>
+                        <flux:navlist.item  icon="document" :href="route('expenses.report')">Expenses Report</flux:navlist.item>
                     </flux:navlist.group>
                     @endcan
                 </flux:navlist.group>
