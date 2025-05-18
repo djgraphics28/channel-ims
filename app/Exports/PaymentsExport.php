@@ -8,14 +8,19 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Color;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
-class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles, WithTitle
+class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles, WithTitle, WithEvents
 {
+    protected $totalAmount = 0;
+
     public function __construct(
         public $startDate,
         public $endDate,
@@ -57,19 +62,21 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                 'Reference Number',
                 'Payment Method',
                 'Payment Scheme',
-                'Amount'
+                'Amount (₱)'
             ]
         ];
     }
 
     public function map($payment): array
     {
+        $this->totalAmount += $payment->amount_paid; // Calculate total
+
         return [
             $payment->created_at->format('Y-m-d'),
-            $payment->reference_number,
+            $payment->order->order_number,
             ucfirst($payment->payment_method),
             ucfirst($payment->payment_scheme),
-            number_format($payment->amount_paid, 2),
+            $payment->amount_paid, // Raw value (formatting handled in styles)
         ];
     }
 
@@ -79,16 +86,6 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         $sheet->getPageSetup()
             ->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4)
             ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE);
-
-        // Set print area
-        $sheet->getPageSetup()->setPrintArea('A1:E' . ($sheet->getHighestRow()));
-
-        // Set margins
-        $sheet->getPageMargins()
-            ->setTop(0.5)
-            ->setRight(0.5)
-            ->setLeft(0.5)
-            ->setBottom(0.5);
 
         // Header styles
         $sheet->mergeCells('A1:E1');
@@ -147,8 +144,8 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         ]);
 
         // Data rows style
-        $lastRow = $sheet->getHighestRow();
-        $dataRange = 'A6:E' . $lastRow;
+        $lastDataRow = $sheet->getHighestRow();
+        $dataRange = 'A6:E' . $lastDataRow;
 
         $sheet->getStyle($dataRange)->applyFromArray([
             'borders' => [
@@ -163,16 +160,16 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         ]);
 
         // Alternate row coloring
-        for ($i = 6; $i <= $lastRow; $i++) {
+        for ($i = 6; $i <= $lastDataRow; $i++) {
             $fillColor = $i % 2 == 0 ? 'FFFFFF' : 'EFF2F7';
             $sheet->getStyle('A' . $i . ':E' . $i)->getFill()
                 ->setFillType(Fill::FILL_SOLID)
                 ->setStartColor(new Color($fillColor));
         }
 
-        // Format amount column
-        $sheet->getStyle('E6:E' . $lastRow)->getNumberFormat()
-            ->setFormatCode('#,##0.00');
+        // Format amount column with ₱ sign
+        $sheet->getStyle('E6:E' . $lastDataRow)->getNumberFormat()
+            ->setFormatCode('"₱"#,##0.00');
 
         // Auto-size columns for better fit
         foreach (range('A', 'E') as $column) {
@@ -181,5 +178,56 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 
         // Freeze header row
         $sheet->freezePane('A6');
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function(AfterSheet $event) {
+                $sheet = $event->sheet;
+                $lastRow = $sheet->getHighestRow();
+
+                // Add Total row
+                $totalRow = $lastRow + 1;
+                $sheet->setCellValue('D' . $totalRow, 'TOTAL:');
+                $sheet->setCellValue('E' . $totalRow, $this->totalAmount);
+
+                // Merge cells for label
+                $sheet->mergeCells('D' . $totalRow . ':E' . $totalRow);
+
+                // Style the Total row
+                $sheet->getStyle('D' . $totalRow . ':E' . $totalRow)->applyFromArray([
+                    'font' => [
+                        'bold' => true,
+                        'size' => 12,
+                        'color' => ['rgb' => 'FFFFFF']
+                    ],
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_RIGHT,
+                    ],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => '4472C4']
+                    ],
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => Border::BORDER_THIN,
+                            'color' => ['rgb' => '000000']
+                        ]
+                    ],
+                    'numberFormat' => [
+                        'formatCode' => '"₱"#,##0.00'
+                    ]
+                ]);
+
+                // Adjust column widths after adding total
+                foreach (range('A', 'E') as $column) {
+                    $sheet->getColumnDimension($column)->setAutoSize(true);
+                }
+
+                // Set print area to include the total row
+                $sheet->getPageSetup()->setPrintArea('A1:E' . $totalRow);
+            }
+        ];
     }
 }
