@@ -23,7 +23,7 @@ new class extends Component {
 
     public function loadPayments()
     {
-        $query = Payment::query()
+        $query = Payment::query()->with('order')
             ->where('branch_id', auth()->user()->branch_id)
             ->whereBetween('created_at', [$this->startDate, $this->endDate]);
 
@@ -135,10 +135,10 @@ new class extends Component {
                         @forelse($payments as $payment)
                             <tr class="border-b transition-colors hover:bg-muted/50">
                                 <td class="p-4 align-middle">{{ $payment->created_at->format('M d, Y') }}</td>
-                                <td class="p-4 align-middle">{{ $payment->reference_number }}</td>
+                                <td class="p-4 align-middle">{{ $payment->order->order_number }}</td>
                                 <td class="p-4 align-middle">{{ ucfirst($payment->payment_method) }}</td>
                                 <td class="p-4 align-middle">{{ ucfirst($payment->payment_scheme) }}</td>
-                                <td class="p-4 text-right align-middle">{{ number_format($payment->amount, 2) }}</td>
+                                <td class="p-4 text-right align-middle">{{ number_format($payment->amount_paid, 2) }}</td>
                             </tr>
                         @empty
                             <tr class="border-b transition-colors hover:bg-muted/50">
