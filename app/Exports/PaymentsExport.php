@@ -2,24 +2,35 @@
 
 namespace App\Exports;
 
+use App\Models\CashFlow;
+use Carbon\Carbon;
 use App\Models\Payment;
-use Maatwebsite\Excel\Concerns\FromQuery;
-use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithMapping;
-use Maatwebsite\Excel\Concerns\WithStyles;
-use Maatwebsite\Excel\Concerns\WithTitle;
-use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use Maatwebsite\Excel\Concerns\FromQuery;
+use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Style\Color;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles, WithTitle, WithEvents
 {
     protected $totalAmount = 0;
+    protected $totalCash = 0;
+    protected $totalCOD = 0;
+    protected $totalSign = 0;
+    protected $totalReturned = 0;
+    protected $totalRefund = 0;
+    // protected $totalMoneyIn = 0;
+    // protected $totalMoneyOut = 0;
+    protected $totalCOH = 0;
+    protected $transactionCount = 0;
 
     public function __construct(
         public $startDate,
@@ -32,7 +43,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
     {
         $query = Payment::query()
             ->whereHas('order')
-            ->whereBetween('created_at', [$this->startDate, $this->endDate]);
+            ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()]);
 
         if ($this->paymentMethod) {
             $query->where('payment_method', $this->paymentMethod);
@@ -69,14 +80,43 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 
     public function map($payment): array
     {
-        $this->totalAmount += $payment->amount_paid; // Calculate total
+        $this->transactionCount++;
+        $this->totalAmount += $payment->amount_paid;
+
+        // Calculate different payment types
+        switch ($payment->payment_method) {
+            case 'cash':
+                $this->totalCash += $payment->amount_paid;
+                break;
+            case 'cod':
+                $this->totalCOD += $payment->amount_paid;
+                break;
+            case 'sign':
+                $this->totalSign += $payment->amount_paid;
+                break;
+            case 'returned':
+                $this->totalReturned += $payment->amount_paid;
+                break;
+            case 'refund':
+                $this->totalRefund += $payment->amount_paid;
+                break;
+            // Add other cases as needed
+        }
+
+        // Add calculations for other metrics as needed
+        // $this->totalSign += ...;
+        // $this->totalReturned += ...;
+        // $this->totalRefund += ...;
+        // $this->totalMoneyIn += ...;
+        // $this->totalMoneyOut += ...;
+        // $this->totalCOH = $this->totalMoneyIn - $this->totalMoneyOut;
 
         return [
             $payment->created_at->format('Y-m-d'),
             $payment->order->order_number,
             ucfirst($payment->payment_method),
             ucfirst($payment->payment_scheme),
-            $payment->amount_paid, // Raw value (formatting handled in styles)
+            $payment->amount_paid,
         ];
     }
 
@@ -181,124 +221,155 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
     }
 
     public function registerEvents(): array
-{
-    return [
-        AfterSheet::class => function(AfterSheet $event) {
-            $sheet = $event->sheet;
-            $lastRow = $sheet->getHighestRow();
+    {
+        return [
+            AfterSheet::class => function(AfterSheet $event) {
+                $sheet = $event->sheet;
+                $lastRow = $sheet->getHighestRow();
 
-            // Add Total row
-            $totalRow = $lastRow + 1;
+                // Add Total row
+                $totalRow = $lastRow + 1;
+                $sheet->setCellValue('D' . $totalRow, 'TOTAL:');
+                $sheet->setCellValue('E' . $totalRow, $this->totalAmount);
 
-            // Label in column D
-            $sheet->setCellValue('D' . $totalRow, 'TOTAL:');
+                // Style the label cell
+                $sheet->getStyle('D' . $totalRow)->applyFromArray([
+                    'font' => [
+                        'bold' => true,
+                        'size' => 12,
+                    ],
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_RIGHT,
+                    ],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => '4472C4']
+                    ],
+                    'borders' => [
+                        'top' => ['borderStyle' => Border::BORDER_THIN],
+                        'bottom' => ['borderStyle' => Border::BORDER_THIN],
+                        'left' => ['borderStyle' => Border::BORDER_THIN],
+                    ]
+                ]);
 
-            // Value in column E (with Peso sign formatting)
-            $sheet->setCellValue('E' . $totalRow, $this->totalAmount);
+                // Style the value cell
+                $sheet->getStyle('E' . $totalRow)->applyFromArray([
+                    'font' => [
+                        'bold' => true,
+                        'size' => 12,
+                        'color' => ['rgb' => 'FFFFFF']
+                    ],
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_RIGHT,
+                    ],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => '4472C4']
+                    ],
+                    'borders' => [
+                        'top' => ['borderStyle' => Border::BORDER_THIN],
+                        'bottom' => ['borderStyle' => Border::BORDER_THIN],
+                        'right' => ['borderStyle' => Border::BORDER_THIN],
+                    ],
+                    'numberFormat' => [
+                        'formatCode' => '"₱"#,##0.00'
+                    ]
+                ]);
 
-            // Style the label cell
-            $sheet->getStyle('D' . $totalRow)->applyFromArray([
-                'font' => [
-                    'bold' => true,
-                    'size' => 12,
-                ],
-                'alignment' => [
-                    'horizontal' => Alignment::HORIZONTAL_RIGHT,
-                ],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => '4472C4']
-                ],
-                'borders' => [
-                    'top' => ['borderStyle' => Border::BORDER_THIN],
-                    'bottom' => ['borderStyle' => Border::BORDER_THIN],
-                    'left' => ['borderStyle' => Border::BORDER_THIN],
-                ]
-            ]);
+                // Add summary section
+                $summaryStartRow = $totalRow + 2;
 
-            // Style the value cell
-            $sheet->getStyle('E' . $totalRow)->applyFromArray([
-                'font' => [
-                    'bold' => true,
-                    'size' => 12,
-                    'color' => ['rgb' => 'FFFFFF']
-                ],
-                'alignment' => [
-                    'horizontal' => Alignment::HORIZONTAL_RIGHT,
-                ],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => '4472C4']
-                ],
-                'borders' => [
-                    'top' => ['borderStyle' => Border::BORDER_THIN],
-                    'bottom' => ['borderStyle' => Border::BORDER_THIN],
-                    'right' => ['borderStyle' => Border::BORDER_THIN],
-                ],
-                'numberFormat' => [
-                    'formatCode' => '"₱"#,##0.00'
-                ]
-            ]);
+                $summaryData = [
+                    ['Total Sales', '₱' . number_format($this->totalAmount, 2)],
+                    ['Number of Transaction', $this->transactionCount],
+                    ['Total Cash', '₱' . number_format($this->totalCash, 2)],
+                    ['Total COD', '₱' . number_format($this->totalCOD, 2)],
+                    ['Total Sign', '₱' . number_format($this->totalSign, 2)],
+                    ['Total Returned', '₱' . number_format($this->totalReturned, 2)],
+                    ['Total Refund', '₱' . number_format($this->totalRefund, 2)],
+                    ['Total Money-In', '₱' . number_format($this->totalMoneyIn(), 2)],
+                    ['Total Money-Out', '₱' . number_format($this->totalMoneyOut(), 2)],
+                    ['COH', '₱' . number_format($this->totalCash + ($this->totalMoneyIn() - $this->totalMoneyOut()), 2)]
+                ];
 
-            // Adjust column widths after adding total
-            foreach (range('A', 'E') as $column) {
-                $sheet->getColumnDimension($column)->setAutoSize(true);
+                // Add summary headers
+                $sheet->setCellValue('A' . $summaryStartRow, 'SUMMARY');
+                $sheet->mergeCells('A' . $summaryStartRow . ':B' . $summaryStartRow);
+                $sheet->getStyle('A' . $summaryStartRow)->applyFromArray([
+                    'font' => [
+                        'bold' => true,
+                        'size' => 14,
+                        'color' => ['rgb' => 'FFFFFF']
+                    ],
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    ],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => '2F75B5']
+                    ]
+                ]);
+
+                // Add summary data
+                $currentRow = $summaryStartRow + 1;
+                foreach ($summaryData as $item) {
+                    $sheet->setCellValue('A' . $currentRow, $item[0]);
+                    $sheet->setCellValue('B' . $currentRow, $item[1]);
+
+                    // Style for label
+                    $sheet->getStyle('A' . $currentRow)->applyFromArray([
+                        'font' => [
+                            'bold' => true,
+                        ],
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => 'D9E1F2']
+                        ],
+                        'borders' => [
+                            'left' => ['borderStyle' => Border::BORDER_THIN],
+                            'top' => ['borderStyle' => Border::BORDER_THIN],
+                            'bottom' => ['borderStyle' => Border::BORDER_THIN],
+                        ]
+                    ]);
+
+                    // Style for value
+                    $sheet->getStyle('B' . $currentRow)->applyFromArray([
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => 'FFFFFF']
+                        ],
+                        'borders' => [
+                            'right' => ['borderStyle' => Border::BORDER_THIN],
+                            'top' => ['borderStyle' => Border::BORDER_THIN],
+                            'bottom' => ['borderStyle' => Border::BORDER_THIN],
+                        ]
+                    ]);
+
+                    $currentRow++;
+                }
+
+                // Adjust column widths
+                $sheet->getColumnDimension('A')->setWidth(25);
+                $sheet->getColumnDimension('B')->setWidth(20);
+
+                // Set print area to include the summary
+                $sheet->getPageSetup()->setPrintArea('A1:E' . ($currentRow - 1));
             }
+        ];
+    }
 
-            // Set print area to include the total row
-            $sheet->getPageSetup()->setPrintArea('A1:E' . $totalRow);
-        }
-    ];
-}
-
-    // public function registerEvents(): array
-    // {
-    //     return [
-    //         AfterSheet::class => function(AfterSheet $event) {
-    //             $sheet = $event->sheet;
-    //             $lastRow = $sheet->getHighestRow();
-
-    //             // Add Total row
-    //             $totalRow = $lastRow + 1;
-    //             $sheet->setCellValue('D' . $totalRow, 'TOTAL:');
-    //             $sheet->setCellValue('E' . $totalRow, $this->totalAmount);
-
-    //             // Merge cells for label
-    //             $sheet->mergeCells('D' . $totalRow . ':E' . $totalRow);
-
-    //             // Style the Total row
-    //             $sheet->getStyle('D' . $totalRow . ':E' . $totalRow)->applyFromArray([
-    //                 'font' => [
-    //                     'bold' => true,
-    //                     'size' => 12,
-    //                     'color' => ['rgb' => 'FFFFFF']
-    //                 ],
-    //                 'alignment' => [
-    //                     'horizontal' => Alignment::HORIZONTAL_RIGHT,
-    //                 ],
-    //                 'fill' => [
-    //                     'fillType' => Fill::FILL_SOLID,
-    //                     'startColor' => ['rgb' => '4472C4']
-    //                 ],
-    //                 'borders' => [
-    //                     'allBorders' => [
-    //                         'borderStyle' => Border::BORDER_THIN,
-    //                         'color' => ['rgb' => '000000']
-    //                     ]
-    //                 ],
-    //                 'numberFormat' => [
-    //                     'formatCode' => '"₱"#,##0.00'
-    //                 ]
-    //             ]);
-
-    //             // Adjust column widths after adding total
-    //             foreach (range('A', 'E') as $column) {
-    //                 $sheet->getColumnDimension($column)->setAutoSize(true);
-    //             }
-
-    //             // Set print area to include the total row
-    //             $sheet->getPageSetup()->setPrintArea('A1:E' . $totalRow);
-    //         }
-    //     ];
-    // }
+    public function totalMoneyIn(): float
+    {
+        $totalMoneyIn = CashFlow::where('type', 'in')
+            ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()])
+            ->sum('amount');
+        return $totalMoneyIn ?? 0;
+    }
+    public function totalMoneyOut(): float
+    {
+        $totalMoneyOut = CashFlow::where('type', 'out')
+            ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()])
+            ->sum('amount');
+        return $totalMoneyOut ?? 0;
+    }
 }

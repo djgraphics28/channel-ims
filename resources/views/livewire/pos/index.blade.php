@@ -23,6 +23,7 @@ new class extends Component {
     public $startDate = null;
     public $endDate = null;
 
+
     public $receiptModal = false;
 
     public $cart = [];
@@ -38,6 +39,12 @@ new class extends Component {
     public $total;
     public $date;
     public $partialPaymentAmount;
+
+    public function mount()
+    {
+        $this->startDate = now()->format('Y-m-d');
+        $this->endDate = now()->format('Y-m-d');
+    }
 
     public function confirmDelete($quotationId)
     {

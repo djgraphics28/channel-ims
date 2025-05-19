@@ -11,12 +11,13 @@ new class extends Component {
     public $endDate;
     public $paymentMethod = '';
     public $paymentScheme = '';
+    public $paymentStatus = '';
     public $payments = [];
     public $totalAmount = 0;
 
     public function mount()
     {
-        $this->startDate = Carbon::now()->startOfMonth()->format('Y-m-d');
+        $this->startDate = Carbon::now()->format('Y-m-d');
         $this->endDate = Carbon::now()->format('Y-m-d');
         $this->loadPayments();
     }
@@ -26,14 +27,17 @@ new class extends Component {
         $query = Payment::query()->with('order')
             ->where('branch_id', auth()->user()->branch_id)
             ->whereHas('order')
-            ->whereBetween('created_at', [$this->startDate, $this->endDate]);
-
+            ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()]);
         if ($this->paymentMethod) {
             $query->where('payment_method', $this->paymentMethod);
         }
 
         if ($this->paymentScheme) {
             $query->where('payment_scheme', $this->paymentScheme);
+        }
+
+        if ($this->paymentStatus) {
+            $query->where('payment_status', $this->paymentStatus);
         }
 
         $this->payments = $query->get();
@@ -74,7 +78,7 @@ new class extends Component {
     </div>
 
     <div class="p-6 space-y-6 border rounded-lg bg-card text-card-foreground shadow-sm">
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-5">
             <div class="space-y-2">
                 <label
                     class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Start
@@ -115,6 +119,18 @@ new class extends Component {
                     <option value="">All Schemes</option>
                     <option value="full-payment">Full Payment</option>
                     <option value="partial-payment">Partial Payment</option>
+                </select>
+            </div>
+
+            <div class="space-y-2">
+                <label
+                    class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Payment
+                    Status</label>
+                <select wire:model.live="paymentStatus"
+                    class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                    <option value="">All Status</option>
+                    <option value="paid">Paid</option>
+                    <option value="not-paid">Not-Paid</option>
                 </select>
             </div>
         </div>
