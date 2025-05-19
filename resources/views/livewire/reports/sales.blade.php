@@ -24,7 +24,7 @@ new class extends Component {
 
     public function loadPayments()
     {
-        $query = Payment::query()->with('order')
+        $query = Payment::query()->with(['order'])
             ->where('branch_id', auth()->user()->branch_id)
             ->whereHas('order')
             ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()]);
@@ -143,6 +143,7 @@ new class extends Component {
                             <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Date</th>
                             <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Reference
                             </th>
+                            <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Customer</th>
                             <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Method</th>
                             <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Scheme</th>
                             <th class="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Amount</th>
@@ -152,7 +153,9 @@ new class extends Component {
                         @forelse($payments as $payment)
                             <tr class="border-b transition-colors hover:bg-muted/50">
                                 <td class="p-4 align-middle">{{ $payment->created_at->format('M d, Y') }}</td>
-                                <td class="p-4 align-middle">{{ $payment->order?->order_number ?? 'No Receipt Number' }}</td>                                <td class="p-4 align-middle">{{ ucfirst($payment->payment_method) }}</td>
+                                <td class="p-4 align-middle">{{ $payment->order?->order_number ?? 'No Receipt Number' }}</td>
+                                <td class="p-4 align-middle">{{ $payment->order?->customer->name ?? 'Walk-in' }}</td>
+                                <td class="p-4 align-middle">{{ ucfirst($payment->payment_method) }}</td>
                                 <td class="p-4 align-middle">{{ ucfirst($payment->payment_scheme) }}</td>
                                 <td class="p-4 text-right align-middle">{{ number_format($payment->amount_paid, 2) }}</td>
                             </tr>
@@ -164,8 +167,8 @@ new class extends Component {
                     </tbody>
                     <tfoot>
                         <tr class="font-medium bg-muted/50">
-                            <td colspan="4" class="p-4 align-middle">Total</td>
-                            <td class="p-4 text-right align-middle">{{ number_format($totalAmount, 2) }}</td>
+                            <td colspan="5" class="p-4 align-middle">Total</td>
+                            <td class="p-4 text-right align-middle">Php {{ number_format($totalAmount, 2) }}</td>
                         </tr>
                     </tfoot>
                 </table>

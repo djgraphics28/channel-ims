@@ -71,6 +71,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
             [
                 'Date',
                 'Reference Number',
+                'Customer Name',
                 'Payment Method',
                 'Payment Scheme',
                 'Amount (₱)'
@@ -114,6 +115,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         return [
             $payment->created_at->format('Y-m-d'),
             $payment->order->order_number,
+            $payment->order->customer->name ?? 'Walk-In',
             ucfirst($payment->payment_method),
             ucfirst($payment->payment_scheme),
             $payment->amount_paid,
@@ -128,11 +130,11 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
             ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE);
 
         // Header styles
-        $sheet->mergeCells('A1:E1');
-        $sheet->mergeCells('A2:E2');
-        $sheet->mergeCells('A3:E3');
+        $sheet->mergeCells('A1:F1');
+        $sheet->mergeCells('A2:F2');
+        $sheet->mergeCells('A3:F3');
 
-        $sheet->getStyle('A1:E1')->applyFromArray([
+        $sheet->getStyle('A1:F1')->applyFromArray([
             'font' => [
                 'bold' => true,
                 'size' => 16,
@@ -148,7 +150,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
             ]
         ]);
 
-        $sheet->getStyle('A2:E3')->applyFromArray([
+        $sheet->getStyle('A2:F3')->applyFromArray([
             'font' => [
                 'size' => 11,
                 'color' => ['rgb' => '333333']
@@ -163,7 +165,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         ]);
 
         // Column headers style
-        $sheet->getStyle('A5:E5')->applyFromArray([
+        $sheet->getStyle('A5:F5')->applyFromArray([
             'font' => [
                 'bold' => true,
                 'color' => ['rgb' => 'FFFFFF']
@@ -202,17 +204,17 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         // Alternate row coloring
         for ($i = 6; $i <= $lastDataRow; $i++) {
             $fillColor = $i % 2 == 0 ? 'FFFFFF' : 'EFF2F7';
-            $sheet->getStyle('A' . $i . ':E' . $i)->getFill()
+            $sheet->getStyle('A' . $i . ':F' . $i)->getFill()
                 ->setFillType(Fill::FILL_SOLID)
                 ->setStartColor(new Color($fillColor));
         }
 
         // Format amount column with ₱ sign
-        $sheet->getStyle('E6:E' . $lastDataRow)->getNumberFormat()
+        $sheet->getStyle('F6:F' . $lastDataRow)->getNumberFormat()
             ->setFormatCode('"₱"#,##0.00');
 
         // Auto-size columns for better fit
-        foreach (range('A', 'E') as $column) {
+        foreach (range('A', 'F') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
@@ -229,11 +231,11 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 
                 // Add Total row
                 $totalRow = $lastRow + 1;
-                $sheet->setCellValue('D' . $totalRow, 'TOTAL:');
-                $sheet->setCellValue('E' . $totalRow, $this->totalAmount);
+                $sheet->setCellValue('E' . $totalRow, 'TOTAL:');
+                $sheet->setCellValue('F' . $totalRow, $this->totalAmount);
 
                 // Style the label cell
-                $sheet->getStyle('D' . $totalRow)->applyFromArray([
+                $sheet->getStyle('E' . $totalRow)->applyFromArray([
                     'font' => [
                         'bold' => true,
                         'size' => 12,
@@ -253,7 +255,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                 ]);
 
                 // Style the value cell
-                $sheet->getStyle('E' . $totalRow)->applyFromArray([
+                $sheet->getStyle('F' . $totalRow)->applyFromArray([
                     'font' => [
                         'bold' => true,
                         'size' => 12,
