@@ -72,7 +72,7 @@ new class extends Component {
                 'name' => $item->product->name,
                 'unit' => $item->product->unit->name ?? 'pc',
                 'price' => $item->price,
-                'quantity' => fmod($item->quantity, 1) ? $item->quantity : (int)$item->quantity,
+                'quantity' => fmod($item->quantity, 1) ? $item->quantity : (int) $item->quantity,
             ];
         }
 
@@ -175,7 +175,7 @@ new class extends Component {
     public function calculateTotal()
     {
         $this->total = collect($this->cart)->sum(function ($item) {
-            return $item['price'] * (float)$item['quantity'] ?? 0;
+            return $item['price'] * (float) $item['quantity'] ?? 0;
         });
     }
 
@@ -203,80 +203,87 @@ new class extends Component {
 
     public function confirmAndPrint()
     {
-        // First find or create the order
-        $order = Order::updateOrCreate(
-            ['order_number' => $this->receiptNumber],
-            [
-                'customer_id' => $this->customerSelected,
-                'created_by' => Auth::id(),
-                'assisted_by' => $this->server,
-                'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
-                'tax' => $this->tax,
-                'discount' => $this->discount,
-                'notes' => $this->notes,
-            ],
-        );
+        DB::beginTransaction();
+        try {
+            // First find or create the order
+            $order = Order::updateOrCreate(
+                ['order_number' => $this->receiptNumber],
+                [
+                    'customer_id' => $this->customerSelected,
+                    'created_by' => Auth::id(),
+                    'assisted_by' => $this->server,
+                    'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
+                    'tax' => $this->tax,
+                    'discount' => $this->discount,
+                    'notes' => $this->notes,
+                ],
+            );
 
-        // Handle payment
-        $order->payment()->updateOrCreate(
-            ['order_id' => $order->id],
-            [
-                'amount_paid' => $this->paymentScheme == 'partial-payment' ? $this->partialPaymentAmount : $this->total + $this->total * ($this->tax / 100) - $this->discount,
-                'payment_method' => $this->paymentMethod,
-                'payment_scheme' => $this->paymentScheme,
-                'payment_status' => $this->paymentStatus,
-                'notes' => $this->notes,
-            ],
-        );
+            // Handle payment
+            $order->payment()->updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'amount_paid' => $this->paymentScheme == 'partial-payment' ? $this->partialPaymentAmount : $this->total + $this->total * ($this->tax / 100) - $this->discount,
+                    'payment_method' => $this->paymentMethod,
+                    'payment_scheme' => $this->paymentScheme,
+                    'payment_status' => $this->paymentStatus,
+                    'notes' => $this->notes,
+                ],
+            );
 
-        // If this is an update (orderId exists and is different from the new order)
-        if ($this->orderId && $this->orderId != $order->id) {
-            $oldOrder = Order::with('order_items')->find($this->orderId);
+            // If this is an update (orderId exists and is different from the new order)
+            if ($this->orderId && $this->orderId != $order->id) {
+                $oldOrder = Order::with('order_items')->find($this->orderId);
 
-            // Return stock from old order items
-            if ($oldOrder) {
-                foreach ($oldOrder->order_items as $item) {
-                    $product = Product::find($item->product_id);
-                    if ($product && $product->product_stock) {
-                        $product->product_stock->increment('stock', $item->quantity);
+                // Return stock from old order items
+                if ($oldOrder) {
+                    foreach ($oldOrder->order_items as $item) {
+                        $product = Product::find($item->product_id);
+                        if ($product && $product->product_stock) {
+                            $product->product_stock->increment('stock', $item->quantity);
+                        }
                     }
+
+                    // Delete old order items but keep the order record
+                    $oldOrder->order_items()->delete();
+
+                    // Optionally mark old order as cancelled or updated
+                    $oldOrder->update(['status' => 'updated']); // or 'cancelled'
                 }
-
-                // Delete old order items but keep the order record
-                $oldOrder->order_items()->delete();
-
-                // Optionally mark old order as cancelled or updated
-                $oldOrder->update(['status' => 'updated']); // or 'cancelled'
             }
-        }
 
-        // Clear existing items for the current order (if any)
-        $order->order_items()->delete();
+            // Clear existing items for the current order (if any)
+            $order->order_items()->delete();
 
-        // Add new order items and decrement stock
-        foreach ($this->cart as $productId => $item) {
-            $product = Product::find($productId);
-            if ($product) {
-                // Decrement stock only if product exists
-                if ($product->product_stock) {
-                    $product->product_stock->decrement('stock', $item['quantity']);
+            // Add new order items and decrement stock
+            foreach ($this->cart as $productId => $item) {
+                $product = Product::find($productId);
+                if ($product) {
+                    // Decrement stock only if product exists
+                    if ($product->product_stock) {
+                        $product->product_stock->decrement('stock', $item['quantity']);
+                    }
+
+                    $order->order_items()->create([
+                        'product_id' => $productId,
+                        'quantity' => $item['quantity'],
+                        'price' => $item['price'],
+                        'subtotal' => $item['quantity'] * $item['price'],
+                    ]);
                 }
-
-                $order->order_items()->create([
-                    'product_id' => $productId,
-                    'quantity' => $item['quantity'],
-                    'price' => $item['price'],
-                    'subtotal' => $item['quantity'] * $item['price'],
-                ]);
             }
-        }
 
-        flash()->success('Quotation processed successfully!');
-        $this->dispatch('print-receipt');
-        $this->receiptModal = false;
-        $this->resetCart();
+            DB::commit();
+
+            flash()->success('Quotation processed successfully!');
+            $this->dispatch('print-receipt');
+            $this->receiptModal = false;
+            $this->resetCart();
+        } catch (\Exception $e) {
+            DB::rollback();
+            flash()->error('Error processing quotation: ' . $e->getMessage());
+        }
     }
-
     // public function confirmAndPrint()
     // {
     //     $order = Order::updateOrCreate(
@@ -472,8 +479,9 @@ new class extends Component {
                                 @endif
                             </div>
                             <h3 class="text-lg font-semibold dark:text-white mt-2 truncate">{{ $product->name }}</h3>
-                            <span class="dark:text-gray-300 text-sm">Description2: {{ $product->description }}</span><br>
-                        <span class="dark:text-gray-300 text-sm">Unit: {{ $product->unit->name ?? '' }}</span>
+                            <span class="dark:text-gray-300 text-sm">Description2:
+                                {{ $product->description }}</span><br>
+                            <span class="dark:text-gray-300 text-sm">Unit: {{ $product->unit->name ?? '' }}</span>
                         </div>
                     @endforeach
                 </div>
@@ -551,20 +559,16 @@ new class extends Component {
                                             <div class="flex items-center justify-end gap-2">
                                                 <button wire:click="updateQuantity({{ $productId }}, -1)"
                                                     class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">-</button>
-                                               <input type="number"
+                                                <input type="number"
                                                     wire:model.live="cart.{{ $productId }}.quantity"
-                                                    wire:keydown="calculateTotal"
-                                                    min="0"
-                                                    step="0.01"
+                                                    wire:keydown="calculateTotal" min="0" step="0.01"
                                                     max="{{ $item['quantity'] }}"
                                                     class="text-center dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 border border-gray-300 rounded-lg px-2 py-1"
-                                                    value="{{ $item['quantity'] ?? 0 }}"
-                                                    onfocus="selectIfZero(this)"
+                                                    value="{{ $item['quantity'] ?? 0 }}" onfocus="selectIfZero(this)"
                                                     onkeydown="handleZeroBackspace(event, this)"
                                                     oninput="validateDecimal(this)" />
 
-                                                    <button
-                                                    wire:click="updateQuantity({{ $productId }}, 1)"
+                                                <button wire:click="updateQuantity({{ $productId }}, 1)"
                                                     class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">+</button>
                                             </div>
                                         </td>
@@ -745,7 +749,9 @@ new class extends Component {
                         <tbody>
                             @foreach ($cart as $item)
                                 <tr>
-                                    <td class="text-center dark:text-gray-300"><small>{{ fmod($item['quantity'], 1) ? number_format($item['quantity'], 2) : number_format($item['quantity'], 0) }}</small> </td>
+                                    <td class="text-center dark:text-gray-300">
+                                        <small>{{ fmod($item['quantity'], 1) ? number_format($item['quantity'], 2) : number_format($item['quantity'], 0) }}</small>
+                                    </td>
                                     <td class="text-center dark:text-gray-300"><small>{{ $item['unit'] }}</small></td>
                                     <td class="text-center dark:text-gray-300"><small>{{ $item['name'] }}</small></td>
                                     <td class="text-right dark:text-gray-300">
@@ -962,7 +968,3 @@ new class extends Component {
         autoInsertedZero = false;
     }
 </script>
-
-
-
-

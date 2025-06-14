@@ -16,13 +16,15 @@ new class extends Component {
     public $quotation;
     public $isEditing = false;
     public $confirmingDelete = false;
+    public $confirmingVoid = false;
     public $quotationToDelete;
+    public $quotationToVoid;
     public $statusFilter = 'all';
     public $schemeFilter = 'all';
     public $methodFilter = 'all';
+    public $voidFilter = 'active'; // Added void filter
     public $startDate = null;
     public $endDate = null;
-
 
     public $receiptModal = false;
 
@@ -52,6 +54,12 @@ new class extends Component {
         $this->confirmingDelete = true;
     }
 
+    public function confirmVoid($quotationId)
+    {
+        $this->quotationToVoid = $quotationId;
+        $this->confirmingVoid = true;
+    }
+
     public function updatingSearch()
     {
         $this->resetPage();
@@ -66,6 +74,17 @@ new class extends Component {
         }
         $this->confirmingDelete = false;
         $this->quotationToDelete = null;
+    }
+
+    public function void()
+    {
+        $quotation = Order::find($this->quotationToVoid);
+        if ($quotation) {
+            $quotation->update(['is_void' => true]); // Fixed the update syntax
+            $this->dispatch('notify', 'Quotation voided successfully!', 'success');
+        }
+        $this->confirmingVoid = false;
+        $this->quotationToVoid = null;
     }
 
     public function printReceipt($orderId)
@@ -113,7 +132,7 @@ new class extends Component {
 
     public function resetFilters()
     {
-        $this->reset(['statusFilter', 'schemeFilter', 'methodFilter', 'startDate', 'endDate']);
+        $this->reset(['statusFilter', 'schemeFilter', 'methodFilter', 'voidFilter', 'startDate', 'endDate']);
         $this->resetPage();
     }
 
@@ -123,28 +142,34 @@ new class extends Component {
         $query = Order::query()
             ->withCount('order_items')
             ->with(['customer', 'payment'])
-            ->where(function($q) {
-                $q->where('order_number', 'like', '%' . $this->search . '%')
-                  ->orWhereHas('customer', function($q) {
-                      $q->where('name', 'like', '%' . $this->search . '%');
-                  });
+            ->where(function ($q) {
+                $q->where('order_number', 'like', '%' . $this->search . '%')->orWhereHas('customer', function ($q) {
+                    $q->where('name', 'like', '%' . $this->search . '%');
+                });
             })
             ->where('branch_id', auth()->user()->branch_id);
 
+        // Apply void filter
+        if ($this->voidFilter === 'active') {
+            $query->where('is_void', false);
+        } elseif ($this->voidFilter === 'voided') {
+            $query->where('is_void', true);
+        }
+
         if ($this->statusFilter !== 'all') {
-            $query->whereHas('payment', function($q) {
+            $query->whereHas('payment', function ($q) {
                 $q->where('payment_status', $this->statusFilter);
             });
         }
 
         if ($this->schemeFilter !== 'all') {
-            $query->whereHas('payment', function($q) {
+            $query->whereHas('payment', function ($q) {
                 $q->where('payment_scheme', $this->schemeFilter);
             });
         }
 
         if ($this->methodFilter !== 'all') {
-            $query->whereHas('payment', function($q) {
+            $query->whereHas('payment', function ($q) {
                 $q->where('payment_method', $this->methodFilter);
             });
         }
@@ -159,20 +184,27 @@ new class extends Component {
 
         $dateQuery = Order::where('branch_id', auth()->user()->branch_id);
 
+        // Apply void filter to counts
+        if ($this->voidFilter === 'active') {
+            $dateQuery->where('is_void', false);
+        } elseif ($this->voidFilter === 'voided') {
+            $dateQuery->where('is_void', true);
+        }
+
         if ($this->statusFilter !== 'all') {
-            $dateQuery->whereHas('payment', function($q) {
+            $dateQuery->whereHas('payment', function ($q) {
                 $q->where('payment_status', $this->statusFilter);
             });
         }
 
         if ($this->schemeFilter !== 'all') {
-            $dateQuery->whereHas('payment', function($q) {
+            $dateQuery->whereHas('payment', function ($q) {
                 $q->where('payment_scheme', $this->schemeFilter);
             });
         }
 
         if ($this->methodFilter !== 'all') {
-            $dateQuery->whereHas('payment', function($q) {
+            $dateQuery->whereHas('payment', function ($q) {
                 $q->where('payment_method', $this->methodFilter);
             });
         }
@@ -188,35 +220,27 @@ new class extends Component {
             'quotations' => $query->latest()->paginate($this->perPage),
             'statusCounts' => [
                 'all' => $dateQuery->count(),
-                'paid' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_status', 'paid'))->count(),
-                'not-paid' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_status', 'not-paid'))->count(),
-                // 'partial' => (clone $dateQuery)
-                //     ->whereHas('payment', fn($q) => $q->where('payment_status', 'partial'))->count(),
-                // 'cancelled' => (clone $dateQuery)
-                //     ->whereHas('payment', fn($q) => $q->where('payment_status', 'cancelled'))->count(),
+                'paid' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_status', 'paid'))->count(),
+                'not-paid' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_status', 'not-paid'))->count(),
             ],
             'schemeCounts' => [
                 'all' => $dateQuery->count(),
-                'full-payment' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_scheme', 'full-payment'))->count(),
-                'partial-payment' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_scheme', 'partial-payment'))->count(),
+                'full-payment' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_scheme', 'full-payment'))->count(),
+                'partial-payment' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_scheme', 'partial-payment'))->count(),
             ],
             'methodCounts' => [
                 'all' => $dateQuery->count(),
-                'cash' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'cash'))->count(),
-                'cod' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'cod'))->count(),
-                'sign' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'sign'))->count(),
-                'refund' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'refund'))->count(),
-                'returned' => (clone $dateQuery)
-                    ->whereHas('payment', fn($q) => $q->where('payment_method', 'returned'))->count(),
-            ]
+                'cash' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_method', 'cash'))->count(),
+                'cod' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_method', 'cod'))->count(),
+                'sign' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_method', 'sign'))->count(),
+                'refund' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_method', 'refund'))->count(),
+                'returned' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_method', 'returned'))->count(),
+            ],
+            'voidCounts' => [
+                'all' => Order::where('branch_id', auth()->user()->branch_id)->count(),
+                'active' => Order::where('branch_id', auth()->user()->branch_id)->where('is_void', false)->count(),
+                'voided' => Order::where('branch_id', auth()->user()->branch_id)->where('is_void', true)->count(),
+            ],
         ];
     }
 };
@@ -256,29 +280,8 @@ new class extends Component {
             </div>
 
             <div class="flex items-center space-x-2">
-                {{-- <div class="relative">
-                    <button id="dropdownBulkActionButton" data-dropdown-toggle="dropdownBulkAction" type="button" class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600" x-data @click="$dispatch('toggle-dropdown')">
-                        Bulk Actions
-                        <svg class="w-4 h-4 ml-2" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </button>
-                    <div id="dropdownBulkAction" class="absolute right-0 mt-2 z-10 hidden bg-white divide-y divide-gray-100 rounded-lg shadow w-44 dark:bg-gray-700 dark:divide-gray-600" x-show="open" @click.away="open = false">
-                        <ul class="py-2 text-sm text-gray-700 dark:text-gray-200" aria-labelledby="dropdownBulkActionButton">
-                            <li>
-                                <button wire:click="exportExcel" class="block w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">
-                                    <i class="fas fa-file-excel mr-2"></i> Export Excel
-                                </button>
-                            </li>
-                            <li>
-                                <button wire:click="printSelected" class="block w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">
-                                    <i class="fas fa-print mr-2"></i> Print Selected
-                                </button>
-                            </li>
-                        </ul>
-                    </div>
-                </div> --}}
-                <select wire:model.live="perPage" class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
+                <select wire:model.live="perPage"
+                    class="rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
                     <option value="5">5 rows</option>
                     <option value="10">10 rows</option>
                     <option value="25">25 rows</option>
@@ -303,7 +306,8 @@ new class extends Component {
             <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                 <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Payment Status</h3>
                 <div class="flex flex-wrap gap-1">
-                    <button wire:click="$set('statusFilter', 'all'), $resetPage()" class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'all' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                    <button wire:click="$set('statusFilter', 'all'), $resetPage()"
+                        class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'all' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         All ({{ $statusCounts['all'] }})
                     </button>
                     <button wire:click="$set('statusFilter', 'paid'), $resetPage()"
@@ -314,14 +318,6 @@ new class extends Component {
                         class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'not-paid' ? 'bg-yellow-100 dark:bg-yellow-900 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Not-Paid ({{ $statusCounts['not-paid'] }})
                     </button>
-                    {{-- <button wire:click="$set('statusFilter', 'partial')"
-                        class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'partial' ? 'bg-purple-100 dark:bg-purple-900 border-purple-300 dark:border-purple-700 text-purple-800 dark:text-purple-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
-                        Partial ({{ $statusCounts['partial'] }})
-                    </button>
-                    <button wire:click="$set('statusFilter', 'cancelled')"
-                        class="px-3 py-1 text-xs rounded-full border {{ $statusFilter === 'cancelled' ? 'bg-red-100 dark:bg-red-900 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
-                        Cancelled ({{ $statusCounts['cancelled'] }})
-                    </button> --}}
                 </div>
             </div>
 
@@ -375,9 +371,24 @@ new class extends Component {
                 </div>
             </div>
 
-            <!-- Date Range Filter -->
+            <!-- Date Range and Void Filter -->
             <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date Range</h3>
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Order Status</h3>
+                <div class="flex flex-wrap gap-1 mb-2">
+                    <button wire:click="$set('voidFilter', 'all'), $resetPage()"
+                        class="px-3 py-1 text-xs rounded-full border {{ $voidFilter === 'all' ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        All ({{ $voidCounts['all'] }})
+                    </button>
+                    <button wire:click="$set('voidFilter', 'active'), $resetPage()"
+                        class="px-3 py-1 text-xs rounded-full border {{ $voidFilter === 'active' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Active ({{ $voidCounts['active'] }})
+                    </button>
+                    <button wire:click="$set('voidFilter', 'voided'), $resetPage()"
+                        class="px-3 py-1 text-xs rounded-full border {{ $voidFilter === 'voided' ? 'bg-red-100 dark:bg-red-900 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Voided ({{ $voidCounts['voided'] }})
+                    </button>
+                </div>
+
                 <div class="grid grid-cols-1 gap-2">
                     <div>
                         <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">From</label>
@@ -453,17 +464,22 @@ new class extends Component {
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
                             @foreach ($quotations as $quotation)
-                                <tr class="dark:hover:bg-gray-800">
+                                <tr class="{{ $quotation->is_void ? 'bg-red-50 dark:bg-red-900/20' : 'dark:hover:bg-gray-800' }}">
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                        {{ $quotation->order_number }}</td>
+                                        {{ $quotation->order_number }}
+                                        @if($quotation->is_void)
+                                            <span class="ml-1 text-xs text-red-500 dark:text-red-400">(VOIDED)</span>
+                                        @endif
+                                    </td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
                                         {{ strtoupper($quotation->customer->name ?? '') }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                        ₱{{ number_format($quotation->total_amount, 2)  }}</td>
+                                        ₱{{ number_format($quotation->total_amount, 2) }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                         ₱{{ number_format($quotation->payment->amount_paid, 2) ?? '' }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                        ₱{{ $quotation->payment->payment_scheme == 'full-payment' ? '0.00' : number_format($quotation->payment->amount_paid, 2) ?? '' }}</td>
+                                        ₱{{ $quotation->payment->payment_scheme == 'full-payment' ? '0.00' : number_format($quotation->payment->amount_paid, 2) ?? '' }}
+                                    </td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                         ₱{{ number_format($quotation->total_amount - $quotation->payment->amount_paid, 2) ?? 0 }}
                                     </td>
@@ -475,12 +491,18 @@ new class extends Component {
                                         @php
                                             $status = strtolower($quotation->payment->payment_status ?? '');
                                             $statusClasses = [
-                                                'paid' => 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200',
-                                                'pending' => 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200',
-                                                'partial' => 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200',
-                                                'cancelled' => 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200',
+                                                'paid' =>
+                                                    'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200',
+                                                'pending' =>
+                                                    'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200',
+                                                'partial' =>
+                                                    'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200',
+                                                'cancelled' =>
+                                                    'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200',
                                             ];
-                                            $class = $statusClasses[$status] ?? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
+                                            $class =
+                                                $statusClasses[$status] ??
+                                                'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
                                         @endphp
                                         <span class="px-2 py-1 text-xs font-medium rounded-full {{ $class }}">
                                             {{ strtoupper($status) }}
@@ -491,10 +513,16 @@ new class extends Component {
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                         {{ $quotation->created_at->format('M d, Y h:i A') }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 space-x-2">
-                                        @can('quotations.edit')
-                                            <a href="{{ route('pos.edit', $quotation->id) }}"
-                                                class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">Edit</a>
-                                        @endcan
+                                        @if(!$quotation->is_void)
+                                            @can('quotations.void')
+                                                <button wire:click="confirmVoid({{ $quotation->id }})"
+                                                    class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">Void</button>
+                                            @endcan
+                                            @can('quotations.edit')
+                                                <a href="{{ route('pos.edit', $quotation->id) }}"
+                                                    class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">Edit</a>
+                                            @endcan
+                                        @endif
 
                                         @can('quotations.delete')
                                             <button wire:click="confirmDelete({{ $quotation->id }})"
@@ -543,6 +571,43 @@ new class extends Component {
                             Delete
                         </button>
                         <button wire:click="$set('confirmingDelete', false)"
+                            class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-base font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-offset-2 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($confirmingVoid)
+        <div class="fixed inset-0 z-10 overflow-y-auto">
+            <div class="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                    <div class="absolute inset-0 bg-gray-500 dark:bg-gray-800 opacity-75"></div>
+                </div>
+                <div
+                    class="inline-block transform overflow-hidden rounded-lg bg-white dark:bg-gray-900 text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
+                    <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div class="sm:flex sm:items-start">
+                            <div class="mt-3 text-center sm:mt-0 sm:text-left">
+                                <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100">
+                                    Void Quotation
+                                </h3>
+                                <div class="mt-2">
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                                        Are you sure you want to void this quotation? This action cannot be undone.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-800 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                        <button wire:click="void"
+                            class="inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:bg-red-500 dark:hover:bg-red-600 dark:focus:ring-red-400 sm:ml-3 sm:w-auto sm:text-sm">
+                            Void
+                        </button>
+                        <button wire:click="$set('confirmingVoid', false)"
                             class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-base font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-offset-2 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
                             Cancel
                         </button>
@@ -610,7 +675,9 @@ new class extends Component {
                         <tbody>
                             @foreach ($cart as $item)
                                 <tr>
-                                    <td class="text-center dark:text-gray-300"><small>{{ fmod($item['quantity'], 1) ? number_format($item['quantity'], 2) : number_format($item['quantity'], 0) }}</small> </td>
+                                    <td class="text-center dark:text-gray-300">
+                                        <small>{{ fmod($item['quantity'], 1) ? number_format($item['quantity'], 2) : number_format($item['quantity'], 0) }}</small>
+                                    </td>
                                     <td class="text-center dark:text-gray-300"><small>{{ $item['unit'] }}</small></td>
                                     <td class="text-center dark:text-gray-300"><small>{{ $item['name'] }}</small></td>
                                     <td class="text-right dark:text-gray-300">
