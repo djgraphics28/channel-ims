@@ -55,6 +55,7 @@ class RolePermissionSeeder extends Seeder
             'quotations.create',
             'quotations.edit',
             'quotations.delete',
+            'quotations.void',
 
             'dashboard.view',
             'settings.view',
@@ -75,6 +76,11 @@ class RolePermissionSeeder extends Seeder
             'employees.create',
             'employees.edit',
             'employees.delete',
+
+            'incentives.view',
+            'incentives.create',
+            'incentives.edit',
+            'incentives.delete',
         ];
 
         foreach ($permissions as $permission) {

@@ -162,7 +162,6 @@ new class extends Component {
 
     public function checkout()
     {
-
         $this->validate();
         if (empty($this->cart)) {
             $this->dispatch('notify', 'Cart is empty!', 'error');
@@ -193,58 +192,67 @@ new class extends Component {
 
     public function confirmAndPrint()
     {
-        $qt = Order::updateOrCreate(
-            ['order_number' => $this->receiptNumber],
-            [
-                'customer_id' => $this->customerSelected,
-                'created_by' => Auth::user()->id,
-                'assisted_by' => $this->server,
-                'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
-                 'tax' => $this->tax,
-                'discount' => $this->discount,
-                'notes' => $this->notes,
-                'branch_id' => auth()->user()->branch_id,
-            ],
-        );
-
-        $qt->payment()->updateOrCreate(
-            ['order_id' => $qt->id],
-            [
-                'amount_paid' => $this->paymentScheme == 'partial-payment' ? $this->partialPaymentAmount : $this->total + $this->total * ($this->tax / 100) - $this->discount,
-                'payment_method' => $this->paymentMethod,
-                'payment_scheme' => $this->paymentScheme,
-                'payment_status' => $this->paymentStatus,
-                'notes' => $this->notes,
-                'branch_id' => auth()->user()->branch_id,
-            ],
-        );
-
-        $qt->update(['status' => 'completed']);
-
-        foreach ($this->cart as $productId => $item) {
-            $product = Product::find($productId);
-            $product->product_stock->decrement('stock', $item['quantity']);
-
-            $qt->order_items()->updateOrCreate(
+        DB::beginTransaction();
+        try {
+            $qt = Order::updateOrCreate(
+                ['order_number' => $this->receiptNumber],
                 [
-                    'product_id' => $productId,
-                    'order_id' => $qt->id,
-                ],
-                [
-                    'quantity' => $item['quantity'],
-                    'price' => $item['price'],
-                    'subtotal' => $item['quantity'] * $item['price'],
+                    'customer_id' => $this->customerSelected,
+                    'created_by' => Auth::user()->id,
+                    'assisted_by' => $this->server,
+                    'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
+                    'tax' => $this->tax,
+                    'discount' => $this->discount,
+                    'notes' => $this->notes,
+                    'branch_id' => auth()->user()->branch_id,
                 ],
             );
+
+            $qt->payment()->updateOrCreate(
+                ['order_id' => $qt->id],
+                [
+                    'amount_paid' => $this->paymentScheme == 'partial-payment' ? $this->partialPaymentAmount : $this->total + $this->total * ($this->tax / 100) - $this->discount,
+                    'payment_method' => $this->paymentMethod,
+                    'payment_scheme' => $this->paymentScheme,
+                    'payment_status' => $this->paymentStatus,
+                    'notes' => $this->notes,
+                    'branch_id' => auth()->user()->branch_id,
+                ],
+            );
+
+            $qt->update(['status' => 'completed']);
+
+            foreach ($this->cart as $productId => $item) {
+                $product = Product::find($productId);
+                $product->product_stock->decrement('stock', $item['quantity']);
+
+                $qt->order_items()->updateOrCreate(
+                    [
+                        'product_id' => $productId,
+                        'order_id' => $qt->id,
+                    ],
+                    [
+                        'quantity' => $item['quantity'],
+                        'price' => $item['price'],
+                        'subtotal' => $item['quantity'] * $item['price'],
+                    ],
+                );
+            }
+
+            DB::commit();
+
+            // Trigger the print function in the browser
+            $this->dispatch('print-receipt');
+            $this->receiptModal = false;
+            $this->cart = [];
+
+            flash()->success('Quotation created successfully!');
+        } catch (\Exception $e) {
+            DB::rollback();
+            flash()->error('Error creating quotation: ' . $e->getMessage());
         }
-
-        // Trigger the print function in the browser
-        $this->dispatch('print-receipt');
-        $this->receiptModal = false;
-        $this->cart = [];
-
-        flash()->success('Quotation created successfully!');
     }
+
     #[Title('Create Quotation')]
     public function with(): array
     {
@@ -280,18 +288,27 @@ new class extends Component {
                 'phone' => 'required',
             ],
         )->validate();
-        Customer::create([
-            'name' => $this->name,
-            'phone' => $this->phone,
-            'email' => $this->email,
-            'address' => $this->address,
-            'birth_date' => $this->birth_date,
-        ]);
 
-        flash()->success('Customer created successfully!');
-        $this->reset(['name', 'phone', 'email', 'address', 'birth_date']);
+        DB::beginTransaction();
+        try {
+            Customer::create([
+                'name' => $this->name,
+                'phone' => $this->phone,
+                'email' => $this->email,
+                'address' => $this->address,
+                'birth_date' => $this->birth_date,
+            ]);
 
-        $this->customerModal = false;
+            DB::commit();
+
+            flash()->success('Customer created successfully!');
+            $this->reset(['name', 'phone', 'email', 'address', 'birth_date']);
+
+            $this->customerModal = false;
+        } catch (\Exception $e) {
+            DB::rollback();
+            flash()->error('Error creating customer: ' . $e->getMessage());
+        }
     }
     public function orderNumber()
     {
@@ -427,21 +444,18 @@ new class extends Component {
                                             </td>
                                             <td class="text-right py-2">
                                                 <div class="flex items-center justify-end gap-2">
-                                                   <button wire:click="updateQuantity({{ $productId }}, -1)"
-                                                    class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">-</button>
-                                                   <input type="number"
-                                                    wire:model.live="cart.{{ $productId }}.quantity"
-                                                    wire:keydown="calculateTotal"
-                                                    min="0"
-                                                    step="0.01"
-                                                    max="{{ $item['quantity'] }}"
-                                                    class="text-center dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 border border-gray-300 rounded-lg px-2 py-1"
-                                                    value="{{ $item['quantity'] ?? 0 }}"
-                                                    onfocus="selectIfZero(this)"
-                                                    onkeydown="handleZeroBackspace(event, this)"
-                                                    oninput="validateDecimal(this)" />
-                                                    <button
-                                                        wire:click="updateQuantity({{ $productId }}, 1)"
+                                                    <button wire:click="updateQuantity({{ $productId }}, -1)"
+                                                        class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">-</button>
+                                                    <input type="number"
+                                                        wire:model.live="cart.{{ $productId }}.quantity"
+                                                        wire:keydown="calculateTotal" min="0" step="0.01"
+                                                        max="{{ $item['quantity'] }}"
+                                                        class="text-center dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 border border-gray-300 rounded-lg px-2 py-1"
+                                                        value="{{ $item['quantity'] ?? 0 }}"
+                                                        onfocus="selectIfZero(this)"
+                                                        onkeydown="handleZeroBackspace(event, this)"
+                                                        oninput="validateDecimal(this)" />
+                                                    <button wire:click="updateQuantity({{ $productId }}, 1)"
                                                         class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">+</button>
                                                 </div>
                                             </td>
@@ -619,8 +633,12 @@ new class extends Component {
                         <tbody>
                             @foreach ($cart as $item)
                                 <tr>
-                                    <td class="text-center dark:text-gray-300"><small>{{ fmod($item['quantity'], 1) ? number_format($item['quantity'], 2) : number_format($item['quantity'], 0) }}</small> </td>
-                                    <td class="text-center dark:text-gray-300"><small>{{ App\Models\Unit::find($item['unit'])?->name ?? 'pc' }}</small></td>
+                                    <td class="text-center dark:text-gray-300">
+                                        <small>{{ fmod($item['quantity'], 1) ? number_format($item['quantity'], 2) : number_format($item['quantity'], 0) }}</small>
+                                    </td>
+                                    <td class="text-center dark:text-gray-300">
+                                        <small>{{ App\Models\Unit::find($item['unit'])?->name ?? 'pc' }}</small>
+                                    </td>
                                     <td class="text-center dark:text-gray-300"><small>{{ $item['name'] }}</small></td>
                                     <td class="text-right dark:text-gray-300">
                                         <small>₱{{ number_format($item['price'], 2) }}</small>

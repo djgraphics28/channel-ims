@@ -37,6 +37,9 @@
                     @can('employees.view')
                     <flux:navlist.item icon="users" :href="route('employees')"  >{{ __('Employees') }}</flux:navlist.item>
                     @endcan
+                    @can('incentives.view')
+                    <flux:navlist.item icon="banknotes" :href="route('incentives')"  >{{ __('Incentives') }}</flux:navlist.item>
+                    @endcan
                     @can('customers.view')
                     <flux:navlist.item icon="users" :href="route('customers')"  >{{ __('Customers') }}</flux:navlist.item>
                     @endcan
