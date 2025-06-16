@@ -16,7 +16,11 @@ new class extends Component {
     public $confirmingDelete = false;
     public $cashflowToDelete;
     #[Url]
-    public $isActiveTab = 'in';
+    public $filterType = '';
+    #[Url]
+    public $startDate = '';
+    #[Url]
+    public $endDate = '';
 
     // Form fields
     public $description = '';
@@ -31,9 +35,28 @@ new class extends Component {
         'remarks' => 'nullable|string',
     ];
 
-    public function setActiveTab($tab)
+    public function mount()
     {
-        $this->isActiveTab = $tab;
+        // Set default date range to current month if not set
+        if (empty($this->startDate) || empty($this->endDate)) {
+            $this->startDate = now()->startOfMonth()->format('Y-m-d');
+            $this->endDate = now()->endOfMonth()->format('Y-m-d');
+        }
+    }
+
+    public function applyFilter($type)
+    {
+        $this->filterType = $type;
+        $this->resetPage();
+    }
+
+    public function updatedStartDate()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedEndDate()
+    {
         $this->resetPage();
     }
 
@@ -41,7 +64,6 @@ new class extends Component {
     {
         $this->resetForm();
         $this->isEditing = false;
-        $this->type = $this->isActiveTab;
         $this->showModal = true;
     }
 
@@ -51,6 +73,7 @@ new class extends Component {
         $this->isEditing = true;
         $this->description = $cashflow->description;
         $this->amount = $cashflow->amount;
+        $this->type = $cashflow->type;
         $this->remarks = $cashflow->remarks;
         $this->showModal = true;
     }
@@ -62,17 +85,17 @@ new class extends Component {
         $data = [
             'description' => $this->description,
             'amount' => $this->amount,
-            'type' => $this->isActiveTab,
+            'type' => $this->type,
             'remarks' => $this->remarks,
             'created_by' => auth()->id(),
         ];
+
         if (!$this->isEditing) {
             $data['branch_id'] = auth()->user()->branch_id;
         }
 
         if ($this->isEditing) {
             $this->cashflow->update($data);
-
             flash()->success('CashFlow updated successfully!');
         } else {
             CashFlow::create($data);
@@ -102,22 +125,48 @@ new class extends Component {
 
     private function resetForm()
     {
-        $this->reset(['description', 'amount', 'remarks']);
+        $this->reset(['description', 'amount', 'remarks', 'type']);
         $this->cashflow = null;
     }
 
     #[Title('CashFlow')]
     public function with(): array
     {
+        $query = CashFlow::query()
+            ->whereBetween('created_at', [
+                $this->startDate . ' 00:00:00',
+                $this->endDate . ' 23:59:59'
+            ])->latest();
+
+        if ($this->filterType) {
+            if ($this->filterType === 'in' || $this->filterType === 'out') {
+                $query->where('type', $this->filterType);
+            } else {
+                $query->where('description', $this->filterType);
+            }
+        }
+
+        if ($this->search) {
+            $query->where(function($q) {
+                $q->where('description', 'like', '%' . $this->search . '%')
+                  ->orWhere('remarks', 'like', '%' . $this->search . '%');
+            });
+        }
+
         return [
-            'cashflows' => CashFlow::query()
-                ->where('type', $this->isActiveTab)
-                ->where('description', 'like', '%' . $this->search . '%')
-                ->paginate(10),
+            'cashflows' => $query->paginate(10),
+            'counts' => [
+                'all' => CashFlow::count(),
+                'in' => CashFlow::where('description', 'Money In')->count(),
+                'out' => CashFlow::where('description', 'Money Out')->count(),
+                'expenses' => CashFlow::where('description', 'Expenses')->count(),
+                'h1_cod' => CashFlow::where('description', 'H1 COD')->count(),
+                'h2_cod' => CashFlow::where('description', 'H2 COD')->count(),
+                'collection' => CashFlow::where('description', 'Collection')->count(),
+            ]
         ];
     }
 };
-
 ?>
 
 <div>
@@ -145,26 +194,66 @@ new class extends Component {
     </div>
 
     <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
-        <div class="flex space-x-4 mb-4">
-            <flux:button wire:click="setActiveTab('in')" :variant="$isActiveTab === 'in' ? 'filled' : 'subtle'"
-                class="flex items-center space-x-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd"
-                        d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                        clip-rule="evenodd" />
-                </svg>
-                <span>Money In</span>
-            </flux:button>
-
-            <flux:button wire:click="setActiveTab('out')" :variant="$isActiveTab === 'out' ? 'filled' : 'subtle'"
-                class="flex items-center space-x-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-                        clip-rule="evenodd" />
-                </svg>
-                <span>Money Out</span>
-            </flux:button>
+        <!-- Date Range Filters -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-4">
+            <div class="flex-1">
+                <label for="startDate" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+                <input wire:model.live="startDate" type="date" id="startDate"
+                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
+            </div>
+            <div class="flex-1">
+                <label for="endDate" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+                <input wire:model.live="endDate" type="date" id="endDate"
+                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
+            </div>
         </div>
+
+        <!-- Filter Buttons -->
+        <div class="flex flex-wrap gap-2 mb-4">
+            <button wire:click="applyFilter('')"
+                class="px-3 py-1 rounded-full text-sm font-medium
+                    @if($filterType === '') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
+                All ({{ $counts['all'] }})
+            </button>
+            <button wire:click="applyFilter('in')"
+                class="px-3 py-1 rounded-full text-sm font-medium
+                    @if($filterType === 'in') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
+                Money In ({{ $counts['in'] }})
+            </button>
+            <button wire:click="applyFilter('out')"
+                class="px-3 py-1 rounded-full text-sm font-medium
+                    @if($filterType === 'out') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
+                Money Out ({{ $counts['out'] }})
+            </button>
+            <button wire:click="applyFilter('Expenses')"
+                class="px-3 py-1 rounded-full text-sm font-medium
+                    @if($filterType === 'Expenses') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
+                Expenses ({{ $counts['expenses'] }})
+            </button>
+            <button wire:click="applyFilter('H1 COD')"
+                class="px-3 py-1 rounded-full text-sm font-medium
+                    @if($filterType === 'H1 COD') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
+                H1 COD ({{ $counts['h1_cod'] }})
+            </button>
+            <button wire:click="applyFilter('H2 COD')"
+                class="px-3 py-1 rounded-full text-sm font-medium
+                    @if($filterType === 'H2 COD') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
+                H2 COD ({{ $counts['h2_cod'] }})
+            </button>
+            <button wire:click="applyFilter('Collection')"
+                class="px-3 py-1 rounded-full text-sm font-medium
+                    @if($filterType === 'Collection') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
+                Collection ({{ $counts['collection'] }})
+            </button>
+        </div>
+
         <div class="flex items-center justify-between">
             <div class="w-1/3">
                 <input wire:model.live="search" type="search" placeholder="Search CashFlows..."
@@ -202,32 +291,25 @@ new class extends Component {
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead class="bg-gray-50 dark:bg-gray-800">
                         <tr>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Description
                             </th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Amount
                             </th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Type
                             </th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Remarks
                             </th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Created By
                             </th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Created At
                             </th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Actions
                             </th>
                         </tr>
@@ -243,13 +325,11 @@ new class extends Component {
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4">
                                     @if ($cashflow->type === 'in')
-                                        <span
-                                            class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
+                                        <span class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
                                             Money In
                                         </span>
                                     @else
-                                        <span
-                                            class="inline-flex items-center rounded-full bg-red-100 dark:bg-red-900 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:text-red-300">
+                                        <span class="inline-flex items-center rounded-full bg-red-100 dark:bg-red-900 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:text-red-300">
                                             Money Out
                                         </span>
                                     @endif
@@ -261,7 +341,7 @@ new class extends Component {
                                     {{ $cashflow->creator->name }}
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
-                                    {{ $cashflow->created_at }}
+                                    {{ $cashflow->created_at->format('M d, Y h:i A') }}
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4 space-x-2">
                                     @can('cashflow.edit')
@@ -299,17 +379,24 @@ new class extends Component {
                     <form wire:submit="save">
                         <div class="bg-white dark:bg-gray-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100 mb-4">
-                                {{ $isEditing ? 'Edit ' : 'Add ' }}
-                                {{ $isActiveTab == 'in' ? 'Money In' : 'Money Out' }}
+                                {{ $isEditing ? 'Edit ' : 'Add ' }} CashFlow
                             </h3>
 
                             <div class="mb-4">
-                                <label for="description"
-                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label for="modalDescription" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Description
                                 </label>
-                                <input wire:model="description" type="text" id="description" required
+                                <select wire:model="description" id="modalDescription" required
                                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
+                                    <option value="">Select Description</option>
+                                    <option value="Money In">Money In</option>
+                                    <option value="Money Out">Money Out</option>
+                                    <option value="Expenses">Expenses</option>
+                                    <option value="H1 COD">H1 COD</option>
+                                    <option value="H2 COD">H2 COD</option>
+                                    <option value="Collection">Collection</option>
+                                    <option value="Other">Other</option>
+                                </select>
                                 @error('description')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
@@ -346,10 +433,11 @@ new class extends Component {
                                 </label>
                                 <select wire:model="type" id="type" required
                                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
-                                    <option value="">Select</option>
-                                    <option value="in" @selected($type === 'in')>Money In</option>
-                                    <option value="out" @selected($type === 'out')>Money Out</option>
-                                </select> @error('type')
+                                    <option value="">Select Type</option>
+                                    <option value="in">Money In</option>
+                                    <option value="out">Money Out</option>
+                                </select>
+                                @error('type')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
