@@ -21,7 +21,7 @@ new class extends Component {
     // Form fields
     public $description = '';
     public $amount = '';
-    public $type = 'in';
+    public $type = '';
     public $remarks = '';
 
     protected $rules = [
@@ -335,6 +335,21 @@ new class extends Component {
                                 <textarea wire:model="remarks" id="remarks" rows="3"
                                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600"></textarea>
                                 @error('remarks')
+                                    <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
+                                @enderror
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="type"
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Type
+                                </label>
+                                <select wire:model="type" id="type" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
+                                    <option value="">Select</option>
+                                    <option value="in" @selected($type === 'in')>Money In</option>
+                                    <option value="out" @selected($type === 'out')>Money Out</option>
+                                </select> @error('type')
                                     <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
                                 @enderror
                             </div>
