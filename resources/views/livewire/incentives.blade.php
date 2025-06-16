@@ -224,7 +224,7 @@ new class extends Component {
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 Percentage</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Agents</th>
+                                Servers</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 Actions</th>
                         </tr>
@@ -243,7 +243,7 @@ new class extends Component {
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                                     <button wire:click="showAgentsList({{ $incentive->id }})"
                                         class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300">
-                                        {{ $incentive->agents->count() }} Agents
+                                        {{ $incentive->agents->count() }} Servers
                                     </button>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -275,9 +275,9 @@ new class extends Component {
                         <thead>
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                                    Agent ID</th>
+                                    Server ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                                    Agent Name</th>
+                                    Server Name</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
                                     Amount</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">

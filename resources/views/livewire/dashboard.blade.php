@@ -37,20 +37,19 @@ new class extends Component {
     {
         // Base query for payments with branch filtering
         $paymentQuery = Payment::when($this->selectedBranch, function ($query) {
+            $query->whereHas('order', function ($q) {
+                $q->where('branch_id', $this->selectedBranch);
+            });
+        })->when(
+            !auth()
+                ->user()
+                ->hasRole(['superadmin', 'admin']),
+            function ($query) {
                 $query->whereHas('order', function ($q) {
-                    $q->where('branch_id', $this->selectedBranch);
+                    $q->where('branch_id', auth()->user()->branch_id);
                 });
-            })
-            ->when(
-                !auth()
-                    ->user()
-                    ->hasRole(['superadmin', 'admin']),
-                function ($query) {
-                    $query->whereHas('order', function ($q) {
-                        $q->where('branch_id', auth()->user()->branch_id);
-                    });
-                },
-            );
+            },
+        );
 
         // Weekly sales data
         $today = today();
@@ -113,7 +112,7 @@ new class extends Component {
         // Daily metrics
         $dailySalesQuery = (clone $paymentQuery)->whereDate('created_at', today());
         $dailySales = $dailySalesQuery->sum('amount_paid');
-        $dailySalesForCoh = (clone $dailySalesQuery)->whereNotIn('payment_method', ['cod', 'sign'])->sum('amount_paid');        //i want to have a separate $dailySales for each Branches
+        $dailySalesForCoh = (clone $dailySalesQuery)->whereNotIn('payment_method', ['cod', 'sign'])->sum('amount_paid'); //i want to have a separate $dailySales for each Branches
         $branchSales = collect($this->branches)
             ->map(function ($branch) use ($dailySalesQuery) {
                 return [
@@ -131,8 +130,14 @@ new class extends Component {
         $this->branchSales = $branchSales;
 
         $totalCash = (clone $dailySalesQuery)->where('payment_method', 'cash')->where('payment_status', 'paid')->sum('amount_paid');
-        $totalCod = (clone $dailySalesQuery)->where('payment_method', 'cod')->whereIn('payment_status', ['paid','not-paid'])->sum('amount_paid');
-        $totalSign = (clone $dailySalesQuery)->where('payment_method', 'sign')->whereIn('payment_status', ['paid','not-paid'])->sum('amount_paid');
+        $totalCod = (clone $dailySalesQuery)
+            ->where('payment_method', 'cod')
+            ->whereIn('payment_status', ['paid', 'not-paid'])
+            ->sum('amount_paid');
+        $totalSign = (clone $dailySalesQuery)
+            ->where('payment_method', 'sign')
+            ->whereIn('payment_status', ['paid', 'not-paid'])
+            ->sum('amount_paid');
         $totalReturn = (clone $dailySalesQuery)->where('payment_method', 'return')->where('payment_status', 'paid')->sum('amount_paid');
         $totalRefund = (clone $dailySalesQuery)->where('payment_method', 'refund')->where('payment_status', 'paid')->sum('amount_paid');
 
@@ -179,7 +184,7 @@ new class extends Component {
         $paymentQuery = Payment::where('payment_status', 'paid')
             ->when($this->selectedBranch, function ($query) {
                 $query->whereHas('order', function ($q) {
-                    $q->where('branch_id', $this->selectedBranch);
+                    $q->where('branch_id', $this->selectedBranch)->where('is_void', false);
                 });
             })
             ->when(
@@ -188,7 +193,7 @@ new class extends Component {
                     ->hasRole(['superadmin', 'admin']),
                 function ($query) {
                     $query->whereHas('order', function ($q) {
-                        $q->where('branch_id', auth()->user()->branch_id);
+                        $q->where('branch_id', auth()->user()->branch_id)->where('is_void', false);
                     });
                 },
             );

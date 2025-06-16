@@ -80,7 +80,7 @@ new class extends Component {
     {
         $quotation = Order::find($this->quotationToVoid);
         if ($quotation) {
-            $quotation->update(['is_void' => true]); // Fixed the update syntax
+            $quotation->update(['is_void' => true, 'order_number' => 'VOID-'. $quotation->order_number]); // Fixed the update syntax
             $this->dispatch('notify', 'Quotation voided successfully!', 'success');
         }
         $this->confirmingVoid = false;
@@ -182,39 +182,7 @@ new class extends Component {
             $query->whereDate('created_at', '<=', $this->endDate);
         }
 
-        $dateQuery = Order::where('branch_id', auth()->user()->branch_id);
-
-        // Apply void filter to counts
-        if ($this->voidFilter === 'active') {
-            $dateQuery->where('is_void', false);
-        } elseif ($this->voidFilter === 'voided') {
-            $dateQuery->where('is_void', true);
-        }
-
-        if ($this->statusFilter !== 'all') {
-            $dateQuery->whereHas('payment', function ($q) {
-                $q->where('payment_status', $this->statusFilter);
-            });
-        }
-
-        if ($this->schemeFilter !== 'all') {
-            $dateQuery->whereHas('payment', function ($q) {
-                $q->where('payment_scheme', $this->schemeFilter);
-            });
-        }
-
-        if ($this->methodFilter !== 'all') {
-            $dateQuery->whereHas('payment', function ($q) {
-                $q->where('payment_method', $this->methodFilter);
-            });
-        }
-
-        if ($this->startDate) {
-            $dateQuery->whereDate('created_at', '>=', $this->startDate);
-        }
-        if ($this->endDate) {
-            $dateQuery->whereDate('created_at', '<=', $this->endDate);
-        }
+        $dateQuery = clone $query;
 
         return [
             'quotations' => $query->latest()->paginate($this->perPage),
@@ -237,9 +205,9 @@ new class extends Component {
                 'returned' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_method', 'returned'))->count(),
             ],
             'voidCounts' => [
-                'all' => Order::where('branch_id', auth()->user()->branch_id)->count(),
-                'active' => Order::where('branch_id', auth()->user()->branch_id)->where('is_void', false)->count(),
-                'voided' => Order::where('branch_id', auth()->user()->branch_id)->where('is_void', true)->count(),
+                'all' => $dateQuery->count(),
+                'active' => (clone $dateQuery)->where('is_void', false)->count(),
+                'voided' => (clone $dateQuery)->where('is_void', true)->count(),
             ],
         ];
     }
@@ -464,10 +432,11 @@ new class extends Component {
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
                             @foreach ($quotations as $quotation)
-                                <tr class="{{ $quotation->is_void ? 'bg-red-50 dark:bg-red-900/20' : 'dark:hover:bg-gray-800' }}">
+                                <tr
+                                    class="{{ $quotation->is_void ? 'bg-red-50 dark:bg-red-900/20' : 'dark:hover:bg-gray-800' }}">
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
                                         {{ $quotation->order_number }}
-                                        @if($quotation->is_void)
+                                        @if ($quotation->is_void)
                                             <span class="ml-1 text-xs text-red-500 dark:text-red-400">(VOIDED)</span>
                                         @endif
                                     </td>
@@ -513,7 +482,7 @@ new class extends Component {
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                         {{ $quotation->created_at->format('M d, Y h:i A') }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 space-x-2">
-                                        @if(!$quotation->is_void)
+                                        @if (!$quotation->is_void)
                                             @can('quotations.void')
                                                 <button wire:click="confirmVoid({{ $quotation->id }})"
                                                     class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">Void</button>

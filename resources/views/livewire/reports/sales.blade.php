@@ -26,7 +26,9 @@ new class extends Component {
     {
         $query = Payment::query()->with(['order'])
             ->where('branch_id', auth()->user()->branch_id)
-            ->whereHas('order')
+            ->whereHas('order', function($q) {
+                $q->where('is_void', false);
+            })
             ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()]);
         if ($this->paymentMethod) {
             $query->where('payment_method', $this->paymentMethod);

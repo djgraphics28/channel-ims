@@ -42,7 +42,9 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
     public function query()
     {
         $query = Payment::query()
-            ->whereHas('order')
+            ->whereHas('order', function($q) {
+                $q->where('is_void', false);
+            })
             ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()]);
 
         if ($this->paymentMethod) {
