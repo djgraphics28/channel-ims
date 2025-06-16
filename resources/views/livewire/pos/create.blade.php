@@ -7,8 +7,6 @@ use App\Models\Category;
 use App\Models\User;
 use App\Models\Order;
 use App\Models\Employee;
-// use App\Models\OrderItem;
-// use App\Models\Payment;
 use App\Models\Customer;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Required;
@@ -26,7 +24,7 @@ new class extends Component {
     public $cart = [];
     public $total = 0;
     public $customerSearch = '';
-    public $customerSelected = null; // Changed to customerSelected
+    public $customerSelected = null;
     public $filteredCustomers = [];
 
     public $tax = 0;
@@ -52,20 +50,21 @@ new class extends Component {
 
     public $receiptModal = false;
 
-    public $form = [
-        'name' => '',
-        'unit' => '',
-        'discount' => 0,
-        'price' => '',
-        'quantity' => '',
-    ];
+    public function mount()
+    {
+        // Load cart from session when component initializes
+        $this->cart = session()->get('cart', []);
+        $this->calculateTotal();
+
+        // Generate receipt number if not set
+        // if (empty($this->receiptNumber)) {
+        //     $this->receiptNumber = $this->orderNumber();
+        // }
+    }
 
     public function rules()
     {
         return [
-            // 'form.name' => 'required|string|max:255',
-            // 'form.price' => 'required|numeric|min:0',
-            // 'form.quantity' => 'required|integer|min:0',
             'receiptNumber' => 'required',
             'paymentScheme' => 'required',
             'paymentStatus' => 'required',
@@ -82,7 +81,7 @@ new class extends Component {
 
     public function selectCustomer($customerId)
     {
-        $this->customerSelected = $customerId; // Changed to customerSelected
+        $this->customerSelected = $customerId;
         $this->customerSearch = '';
         $this->filteredCustomers = [];
     }
@@ -123,6 +122,7 @@ new class extends Component {
             ];
         }
 
+        $this->saveCartToSession();
         $this->calculateTotal();
         $this->dispatch('notify', 'Product added to cart!', 'success');
     }
@@ -130,6 +130,7 @@ new class extends Component {
     public function removeFromCart($productId)
     {
         unset($this->cart[$productId]);
+        $this->saveCartToSession();
         $this->calculateTotal();
         $this->dispatch('notify', 'Product removed from cart!', 'success');
     }
@@ -149,6 +150,7 @@ new class extends Component {
             unset($this->cart[$productId]);
         }
 
+        $this->saveCartToSession();
         $this->calculateTotal();
     }
 
@@ -158,6 +160,19 @@ new class extends Component {
         foreach ($this->cart as $item) {
             $this->total += $item['price'] * $item['quantity'];
         }
+    }
+
+    protected function saveCartToSession()
+    {
+        session()->put('cart', $this->cart);
+    }
+
+    public function clearCart()
+    {
+        $this->cart = [];
+        session()->forget('cart');
+        $this->total = 0;
+        $this->dispatch('notify', 'Cart cleared!', 'success');
     }
 
     public function checkout()
@@ -179,14 +194,6 @@ new class extends Component {
         }
 
         $this->receiptModal = true;
-
-        // $this->cart = [];
-        // $this->total = 0;
-        // $this->customerSelected = null;
-        // $this->tax = 0;
-        // $this->discount = 0;
-        // $this->paymentMethod = null;
-        // $this->paymentScheme = null;
         $this->dispatch('notify', 'Transaction completed successfully!', 'success');
     }
 
@@ -241,10 +248,12 @@ new class extends Component {
 
             DB::commit();
 
+            // Clear the cart after successful order
+            $this->clearCart();
+
             // Trigger the print function in the browser
             $this->dispatch('print-receipt');
             $this->receiptModal = false;
-            $this->cart = [];
 
             flash()->success('Quotation created successfully!');
         } catch (\Exception $e) {
@@ -310,6 +319,7 @@ new class extends Component {
             flash()->error('Error creating customer: ' . $e->getMessage());
         }
     }
+
     public function orderNumber()
     {
         $prefix = 'QT';
@@ -320,13 +330,12 @@ new class extends Component {
         return $prefix . $date . $sequence;
     }
 };
-
 ?>
 
 <div>
     <div class="flex h-full w-full gap-4">
         <!-- Products Grid -->
-        <div class="w-2/3">
+        <div class="w-4/7">
             <div class="mb-4 flex gap-4">
                 <input wire:model.live="search" type="search" placeholder="Search products..."
                     class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm dark:text-gray-300 dark:placeholder-gray-500">
@@ -378,7 +387,7 @@ new class extends Component {
         </div>
 
         <!-- Cart -->
-        <div class="w-1/3">
+        <div class="w-3/7">
             <div class="rounded-lg border p-4 shadow-sm">
                 <div class="flex items-center gap-2">
                     <span class="font-medium">Cashier:</span>
@@ -386,8 +395,6 @@ new class extends Component {
                 </div>
             </div>
             <div class="rounded-lg border p-4 shadow-sm mt-2">
-                {{-- <h2 class="mb-4 text-xl font-bold">Cart</h2> --}}
-
                 @if (empty($cart))
                     <p class="text-gray-500">Cart is empty</p>
                 @else
@@ -404,7 +411,7 @@ new class extends Component {
                                     <flux:button title="Add New Customer" wire:click="addCustomer" icon="plus"
                                         class="mt-6 ml-2">
                                     </flux:button>
-                                </div> <!-- Remove value attribute since wire:model handles the binding -->
+                                </div>
                                 @if ($filteredCustomers && count($filteredCustomers) > 0)
                                     <div
                                         class="absolute z-10 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg mt-1">
@@ -564,10 +571,16 @@ new class extends Component {
                                     <span>₱{{ number_format($total + ($total * floatval($tax)) / 100 - floatval($discount), 2) }}</span>
                                 </div>
 
-                                <button wire:click="checkout" wire:loading.attr="disabled"
-                                    class="mt-4 w-full rounded-lg bg-green-600 px-4 py-3 text-white hover:bg-green-700 transition font-medium">
-                                    <span>Submit Quotation</span>
-                                </button>
+                                <div class="flex gap-2">
+                                    <button wire:click="clearCart"
+                                        class="mt-4 w-1/3 rounded-lg bg-red-600 px-4 py-3 text-white hover:bg-red-700 transition font-medium">
+                                        <span>Clear Cart</span>
+                                    </button>
+                                    <button wire:click="checkout" wire:loading.attr="disabled"
+                                        class="mt-4 w-2/3 rounded-lg bg-green-600 px-4 py-3 text-white hover:bg-green-700 transition font-medium">
+                                        <span>Submit Quotation</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                 @endif
@@ -579,14 +592,6 @@ new class extends Component {
     @if ($receiptModal)
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
             <div class="bg-white dark:bg-gray-800 p-8 rounded-lg w-[13cm]" id="printable-receipt">
-                <!-- Receipt Header -->
-                {{-- <div class="text-center mb-4">
-              <h2 class="text-xl font-bold dark:text-white">Company Name</h2>
-              <p class="text-sm dark:text-gray-300">123 Business Street</p>
-              <p class="text-sm dark:text-gray-300">Phone: (123) 456-7890</p>
-              <p class="text-sm dark:text-gray-300">Receipt #: {{ $this->receiptNumber }}</p>
-              <p class="text-sm dark:text-gray-300">Date: {{ now()->format('M d, Y') }}</p>
-          </div> --}}
                 <br>
                 <br>
                 <br>
@@ -759,13 +764,6 @@ new class extends Component {
                                 <flux:input wire:model="name" :label="__('Name')" type="text" required
                                     class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
                             </div>
-                            {{-- <div class="mb-4">
-                            <flux:input wire:model="form.document_id" :label="__('Document ID')" type="text"
-                                class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
-                            @error('form.document_id')
-                                <span class="text-red-500 dark:text-red-400 text-xs">{{ $message }}</span>
-                            @enderror
-                        </div> --}}
                             <div class="mb-4">
                                 <flux:input wire:model="email" :label="__('Email')" type="email"
                                     class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
