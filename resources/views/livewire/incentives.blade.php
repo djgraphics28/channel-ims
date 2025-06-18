@@ -9,23 +9,23 @@ use App\Models\Employee;
 new class extends Component {
     public $start;
     public $end;
-    public $percentage;
+    public $percentage = 0.02;
     public $incentives;
     public $selectedIncentive;
-    public $showAgents = false;
     public $confirmingDelete = false;
     public $deleteId;
+    public $expandedIncentive = null;
 
     public function mount()
     {
-        $this->incentives = Incentive::with('agents')->latest()->get();
+        $this->incentives = Incentive::with('agents.employee')->latest()->get();
     }
 
     public function generateIncentive()
     {
         $this->validate([
-            'start' => 'required|date',
-            'end' => 'required|date|after:start',
+            'start' => 'required|date|unique:incentives,start,NULL,id,end,' . $this->end,
+            'end' => 'required|date|after:start|unique:incentives,end,NULL,id,start,' . $this->start,
             'percentage' => 'required|numeric|min:0|max:100',
         ]);
 
@@ -37,14 +37,12 @@ new class extends Component {
             'created_by' => auth()->id(),
         ]);
 
-        // Get all completed orders within date range with assisted_by
         $orders = Order::whereBetween('created_at', [$this->start, $this->end])
             ->where('status', 'completed')
             ->whereNotNull('assisted_by')
             ->where('is_void', 0)
             ->get();
 
-        // Get unique employee IDs from orders and calculate total amount per agent
         $agentTotals = $orders->groupBy('assisted_by')
             ->map(function ($agentOrders) use ($incentive) {
                 $totalAmount = $agentOrders->sum('total_amount');
@@ -56,20 +54,22 @@ new class extends Component {
                 ];
             });
 
-        // Create incentive agent records with calculated amounts
         foreach ($agentTotals as $agentData) {
             IncentiveAgent::create([
                 'incentive_id' => $incentive->id,
                 'agent_id' => $agentData['agent_id'],
                 'amount' => $agentData['amount'],
+                'total_order_amount' => $agentData['total_order_amount'],
+                'order_count' => $agentData['order_count']
             ]);
         }
 
         $this->reset(['start', 'end', 'percentage']);
-        $this->incentives = Incentive::with('agents')->latest()->get();
+        $this->incentives = Incentive::with('agents.employee')->latest()->get();
 
         $this->dispatch('notify', ['type' => 'success', 'message' => 'Incentive generated successfully!']);
     }
+
     public function editIncentive($id)
     {
         $incentive = Incentive::find($id);
@@ -82,7 +82,7 @@ new class extends Component {
     public function deleteIncentive()
     {
         Incentive::find($this->deleteId)->delete();
-        $this->incentives = Incentive::with('agents')->latest()->get();
+        $this->incentives = Incentive::with('agents.employee')->latest()->get();
         $this->confirmingDelete = false;
         $this->dispatch('notify', ['type' => 'success', 'message' => 'Incentive deleted successfully!']);
     }
@@ -93,53 +93,71 @@ new class extends Component {
         $this->confirmingDelete = true;
     }
 
-    public function showAgentsList($id)
+    public function toggleAgents($id)
     {
-        $this->selectedIncentive = Incentive::with(['agents', 'agents.employee'])->find($id);
-        $this->showAgents = true;
+        if ($this->expandedIncentive === $id) {
+            $this->expandedIncentive = null;
+        } else {
+            $this->expandedIncentive = $id;
+        }
     }
 
-    public function exportIncentives()
+    public function exportIncentive($id)
     {
-        $incentives = Incentive::with(['agents', 'agents.employee'])->get();
+        $incentive = Incentive::with(['agents', 'agents.employee'])->find($id);
 
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="incentive_agents_' . date('Y-m-d') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="incentive_report_' . date('Y-m-d') . '_' . $incentive->id . '.csv"',
         ];
 
-        $callback = function() use ($incentives) {
+        $callback = function() use ($incentive) {
             $file = fopen('php://output', 'w');
 
-            // Header row
-            fputcsv($file, [
-                'ID',
-                'Start Date',
-                'End Date',
-                'Percentage',
-                'Agent ID',
-                'Agent Name',
-                'Amount',
-                'Total Order Amount',
-                'Number of Assisted Orders'
-            ]);
+            // Header row with the requested format
+            fputcsv($file, ['Location', 'Channel-H1', '', '', '']);
+            fputcsv($file, ['Month', date('M-y', strtotime($incentive->start)), '', '', '']);
+            fputcsv($file, ['', '', 'Total Sales', '', '# of Receipt']);
+            fputcsv($file, ['Server Name', 'ID', 'Sales', 'Incentive', 'Receipt', 'Incentive']);
 
-            // Data rows
-            foreach ($incentives as $incentive) {
-                foreach ($incentive->agents as $agent) {
-                    fputcsv($file, [
-                        $incentive->id,
-                        $incentive->start,
-                        $incentive->end,
-                        $incentive->percentage . '%',
-                        $agent->agent_id,
-                        $agent->employee->name ?? 'Unknown',
-                        number_format($agent->amount, 2),
-                        number_format($agent->total_order_amount, 2),
-                        $agent->order_count
-                    ]);
-                }
+            $totalSales = 0;
+            $totalIncentive = 0;
+            $totalReceipts = 0;
+            $totalReceiptIncentive = 0;
+
+            foreach ($incentive->agents as $agent) {
+                $sales = $agent->total_order_amount;
+                $incentiveAmount = $agent->amount;
+                $receipts = $agent->order_count;
+                $receiptIncentive = $receipts * ($incentive->percentage / 4);
+
+                fputcsv($file, [
+                    $agent->employee->first_name ?? 'Unknown',
+                    $agent->agent_id,
+                    number_format($sales, 2),
+                    number_format($incentiveAmount, 2),
+                    $receipts,
+                    number_format($receiptIncentive, 2)
+                ]);
+
+                $totalSales += $sales;
+                $totalIncentive += $incentiveAmount;
+                $totalReceipts += $receipts;
+                $totalReceiptIncentive += $receiptIncentive;
             }
+
+            // Add empty row
+            fputcsv($file, ['']);
+
+            // Add totals row
+            fputcsv($file, [
+                '',
+                '',
+                number_format($totalSales, 2),
+                number_format($totalIncentive, 2),
+                $totalReceipts,
+                number_format($totalReceiptIncentive, 2)
+            ]);
 
             fclose($file);
         };
@@ -183,7 +201,7 @@ new class extends Component {
                     <flux:input wire:model="end" :label="__('End Date')" type="date" required
                         class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
 
-                    <flux:input wire:model="percentage" :label="__('Percentage')" type="number" step="0.01" required
+                    <flux:input wire:model="percentage" :label="__('Percentage')" type="number" step="0.01" readonly
                         class="dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" />
                 </div>
                 <div class="flex justify-end">
@@ -205,12 +223,6 @@ new class extends Component {
             <div class="overflow-hidden bg-white dark:bg-gray-800 shadow sm:rounded-lg">
                 <div class="flex justify-between items-center px-6 py-3 bg-gray-50 dark:bg-gray-700">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Incentives</h3>
-                    <button wire:click="exportIncentives" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-800">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                        </svg>
-                        Export
-                    </button>
                 </div>
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead class="bg-gray-50 dark:bg-gray-700">
@@ -218,13 +230,15 @@ new class extends Component {
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 ID</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                Start Date</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                End Date</th>
+                                Period</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 Percentage</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                Total Sales</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 Servers</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                Total Incentives</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 Actions</th>
                         </tr>
@@ -235,77 +249,97 @@ new class extends Component {
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                                     {{ $incentive->id }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                    {{ $incentive->start }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                    {{ $incentive->end }}</td>
+                                    {{ date('M d', strtotime($incentive->start)) }} - {{ date('M d, Y', strtotime($incentive->end)) }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                                     {{ $incentive->percentage }}%</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                    <button wire:click="showAgentsList({{ $incentive->id }})"
+                                    ₱{{ number_format($incentive->agents->sum('total_order_amount'), 2) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                    <button wire:click="toggleAgents({{ $incentive->id }})"
                                         class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300">
                                         {{ $incentive->agents->count() }} Servers
                                     </button>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <button wire:click="editIncentive({{ $incentive->id }})"
-                                        class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 mr-4">Edit</button>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                    ₱{{ number_format($incentive->agents->sum('amount'), 2) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                    {{-- <button wire:click="editIncentive({{ $incentive->id }})"
+                                        class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300">Edit</button> --}}
                                     <button wire:click="confirmDelete({{ $incentive->id }})"
                                         class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300">Delete</button>
+                                    <a href="#" wire:click.prevent="exportIncentive({{ $incentive->id }})"
+                                        class="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300">
+                                        Export
+                                    </a>
                                 </td>
                             </tr>
+
+                            @if ($expandedIncentive === $incentive->id)
+                                <tr>
+                                    <td colspan="7" class="px-0 py-0">
+                                        <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700">
+                                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Servers Incentive Details</h4>
+                                            <div class="overflow-x-auto">
+                                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+                                                    <thead class="bg-gray-100 dark:bg-gray-600">
+                                                        <tr>
+                                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                                Server</th>
+                                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                                ID</th>
+                                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                                Total Sales</th>
+                                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                                Incentive ({{ $incentive->percentage }}%)</th>
+                                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                                # of Receipts</th>
+                                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                                Receipt Incentive</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
+                                                        @foreach ($incentive->agents as $agent)
+                                                            <tr>
+                                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                                                    {{ $agent->employee->first_name ?? 'Unknown' }}</td>
+                                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                                                    {{ $agent->agent_id }}</td>
+                                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                                                    ₱{{ number_format($agent->total_order_amount, 2) }}</td>
+                                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                                                    ₱{{ number_format($agent->amount, 2) }}</td>
+                                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                                                    {{ $agent->order_count }}</td>
+                                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                                                    ₱{{ number_format($agent->order_count * ($incentive->percentage / 4), 2) }}</td>
+                                                            </tr>
+                                                        @endforeach
+                                                        <tr class="bg-gray-50 dark:bg-gray-700 font-semibold">
+                                                            <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100" colspan="2">
+                                                                Totals</td>
+                                                            <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                                                ₱{{ number_format($incentive->agents->sum('total_order_amount'), 2) }}</td>
+                                                            <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                                                ₱{{ number_format($incentive->agents->sum('amount'), 2) }}</td>
+                                                            <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                                                {{ $incentive->agents->sum('order_count') }}</td>
+                                                            <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                                                ₱{{ number_format($incentive->agents->sum('order_count') * ($incentive->percentage / 4), 2) }}</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endif
                         @endforeach
                     </tbody>
                 </table>
             </div>
         </div>
-
-        @if ($showAgents)
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 flex items-center justify-center">
-                <div class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-4xl w-full max-h-[80vh] overflow-y-auto">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-medium dark:text-gray-100">Agents List - {{ $selectedIncentive->start }} to {{ $selectedIncentive->end }}</h3>
-                        <button wire:click="$set('showAgents', false)"
-                            class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead>
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                                    Server ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                                    Server Name</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                                    Amount</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                                    Total Orders</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                                    Order Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($selectedIncentive->agents as $agent)
-                                <tr>
-                                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
-                                        {{ $agent->agent_id }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
-                                        {{ $agent->employee->first_name ?? 'Unknown' }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
-                                        {{ number_format($agent->amount, 2) }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
-                                        {{ $agent->order_count }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
-                                        {{ number_format($agent->total_order_amount, 2) }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        @endif
     </div>
 
     @if ($confirmingDelete)
