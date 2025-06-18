@@ -284,17 +284,34 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                 $summaryStartRow = $totalRow + 2;
 
                 $summaryData = [
-                    ['Total Sales', '₱' . number_format($this->totalAmount, 2)],
                     ['Number of Transaction', $this->transactionCount],
                     ['Total Cash', '₱' . number_format($this->totalCash, 2)],
                     ['Total COD', '₱' . number_format($this->totalCOD, 2)],
                     ['Total Sign', '₱' . number_format($this->totalSign, 2)],
                     ['Total Returned', '₱' . number_format($this->totalReturned, 2)],
                     ['Total Refund', '₱' . number_format($this->totalRefund, 2)],
+                    ['Total Sales', '₱' . number_format($this->totalAmount, 2)],
+                    ['H1 COD', '₱' ],
+                    ['H2 COD', '₱' ],
+                    ['Collection', '₱' ],
                     ['Total Money-In', '₱' . number_format($this->totalMoneyIn(), 2)],
+                    ['Expenses', '₱' ],
                     ['Total Money-Out', '₱' . number_format($this->totalMoneyOut(), 2)],
-                    ['COH', '₱' . number_format($this->totalCash + ($this->totalMoneyIn() - $this->totalMoneyOut()), 2)]
+                    ['Record/RCD', '₱' ],
                 ];
+
+                // $summaryData = [
+                //     ['Total Sales', '₱' . number_format($this->totalAmount, 2)],
+                //     ['Number of Transaction', $this->transactionCount],
+                //     ['Total Cash', '₱' . number_format($this->totalCash, 2)],
+                //     ['Total COD', '₱' . number_format($this->totalCOD, 2)],
+                //     ['Total Sign', '₱' . number_format($this->totalSign, 2)],
+                //     ['Total Returned', '₱' . number_format($this->totalReturned, 2)],
+                //     ['Total Refund', '₱' . number_format($this->totalRefund, 2)],
+                //     ['Total Money-In', '₱' . number_format($this->totalMoneyIn(), 2)],
+                //     ['Total Money-Out', '₱' . number_format($this->totalMoneyOut(), 2)],
+                //     ['COH', '₱' . number_format($this->totalCash + ($this->totalMoneyIn() - $this->totalMoneyOut()), 2)]
+                // ];
 
                 // Add summary headers
                 $sheet->setCellValue('A' . $summaryStartRow, 'SUMMARY');
@@ -341,6 +358,9 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
                             'startColor' => ['rgb' => 'FFFFFF']
+                        ],
+                        'alignment' => [
+                            'horizontal' => Alignment::HORIZONTAL_RIGHT,
                         ],
                         'borders' => [
                             'right' => ['borderStyle' => Border::BORDER_THIN],
