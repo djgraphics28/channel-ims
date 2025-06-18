@@ -227,15 +227,15 @@ new class extends Component {
                     @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
                 All ({{ $counts['all'] }})
             </button>
-            <button wire:click="applyFilter('in')"
+            <button wire:click="applyFilter('Money In')"
                 class="px-3 py-1 rounded-full text-sm font-medium
-                    @if ($filterType === 'in') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @if ($filterType === 'Money In') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
                     @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
                 Money In ({{ $counts['in'] }})
             </button>
-            <button wire:click="applyFilter('out')"
+            <button wire:click="applyFilter('Money Out')"
                 class="px-3 py-1 rounded-full text-sm font-medium
-                    @if ($filterType === 'out') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @if ($filterType === 'Money Out') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
                     @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
                 Money Out ({{ $counts['out'] }})
             </button>
