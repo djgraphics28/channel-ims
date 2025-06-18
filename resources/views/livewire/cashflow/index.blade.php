@@ -137,11 +137,12 @@ new class extends Component {
             ->latest();
 
         if ($this->filterType) {
-            if ($this->filterType === 'in' || $this->filterType === 'out') {
-                $query->where('type', $this->filterType);
-            } else {
-                $query->where('description', $this->filterType);
-            }
+            $query->where('description', $this->filterType);
+            // if ($this->filterType === 'in' || $this->filterType === 'out') {
+            //     $query->where('type', $this->filterType);
+            // } else {
+            //     $query->where('description', $this->filterType);
+            // }
         }
 
         if ($this->search) {
