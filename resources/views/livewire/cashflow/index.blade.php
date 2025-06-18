@@ -133,10 +133,8 @@ new class extends Component {
     public function with(): array
     {
         $query = CashFlow::query()
-            ->whereBetween('created_at', [
-                $this->startDate . ' 00:00:00',
-                $this->endDate . ' 23:59:59'
-            ])->latest();
+            ->whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+            ->latest();
 
         if ($this->filterType) {
             if ($this->filterType === 'in' || $this->filterType === 'out') {
@@ -147,23 +145,34 @@ new class extends Component {
         }
 
         if ($this->search) {
-            $query->where(function($q) {
-                $q->where('description', 'like', '%' . $this->search . '%')
-                  ->orWhere('remarks', 'like', '%' . $this->search . '%');
+            $query->where(function ($q) {
+                $q->where('description', 'like', '%' . $this->search . '%')->orWhere('remarks', 'like', '%' . $this->search . '%');
             });
         }
 
         return [
             'cashflows' => $query->paginate(10),
             'counts' => [
-                'all' => CashFlow::count(),
-                'in' => CashFlow::where('description', 'Money In')->count(),
-                'out' => CashFlow::where('description', 'Money Out')->count(),
-                'expenses' => CashFlow::where('description', 'Expenses')->count(),
-                'h1_cod' => CashFlow::where('description', 'H1 COD')->count(),
-                'h2_cod' => CashFlow::where('description', 'H2 COD')->count(),
-                'collection' => CashFlow::where('description', 'Collection')->count(),
-            ]
+                'all' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])->count(),
+                'in' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('description', 'Money In')
+                    ->count(),
+                'out' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('description', 'Money Out')
+                    ->count(),
+                'expenses' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('description', 'Expenses')
+                    ->count(),
+                'h1_cod' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('description', 'H1 COD')
+                    ->count(),
+                'h2_cod' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('description', 'H2 COD')
+                    ->count(),
+                'collection' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('description', 'Collection')
+                    ->count(),
+            ],
         ];
     }
 };
@@ -197,12 +206,14 @@ new class extends Component {
         <!-- Date Range Filters -->
         <div class="flex flex-col sm:flex-row gap-4 mb-4">
             <div class="flex-1">
-                <label for="startDate" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+                <label for="startDate" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start
+                    Date</label>
                 <input wire:model.live="startDate" type="date" id="startDate"
                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
             </div>
             <div class="flex-1">
-                <label for="endDate" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+                <label for="endDate" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End
+                    Date</label>
                 <input wire:model.live="endDate" type="date" id="endDate"
                     class="w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-400/20 focus:outline-none transition duration-200 dark:border-gray-600">
             </div>
@@ -212,43 +223,43 @@ new class extends Component {
         <div class="flex flex-wrap gap-2 mb-4">
             <button wire:click="applyFilter('')"
                 class="px-3 py-1 rounded-full text-sm font-medium
-                    @if($filterType === '') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @if ($filterType === '') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
                     @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
                 All ({{ $counts['all'] }})
             </button>
             <button wire:click="applyFilter('in')"
                 class="px-3 py-1 rounded-full text-sm font-medium
-                    @if($filterType === 'in') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @if ($filterType === 'in') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
                     @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
                 Money In ({{ $counts['in'] }})
             </button>
             <button wire:click="applyFilter('out')"
                 class="px-3 py-1 rounded-full text-sm font-medium
-                    @if($filterType === 'out') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @if ($filterType === 'out') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
                     @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
                 Money Out ({{ $counts['out'] }})
             </button>
             <button wire:click="applyFilter('Expenses')"
                 class="px-3 py-1 rounded-full text-sm font-medium
-                    @if($filterType === 'Expenses') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @if ($filterType === 'Expenses') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
                     @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
                 Expenses ({{ $counts['expenses'] }})
             </button>
             <button wire:click="applyFilter('H1 COD')"
                 class="px-3 py-1 rounded-full text-sm font-medium
-                    @if($filterType === 'H1 COD') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @if ($filterType === 'H1 COD') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
                     @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
                 H1 COD ({{ $counts['h1_cod'] }})
             </button>
             <button wire:click="applyFilter('H2 COD')"
                 class="px-3 py-1 rounded-full text-sm font-medium
-                    @if($filterType === 'H2 COD') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @if ($filterType === 'H2 COD') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
                     @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
                 H2 COD ({{ $counts['h2_cod'] }})
             </button>
             <button wire:click="applyFilter('Collection')"
                 class="px-3 py-1 rounded-full text-sm font-medium
-                    @if($filterType === 'Collection') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
+                    @if ($filterType === 'Collection') bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300
                     @else bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 @endif">
                 Collection ({{ $counts['collection'] }})
             </button>
@@ -291,25 +302,32 @@ new class extends Component {
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead class="bg-gray-50 dark:bg-gray-800">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Description
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Amount
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Type
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Remarks
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Created By
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Created At
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 Actions
                             </th>
                         </tr>
@@ -325,11 +343,13 @@ new class extends Component {
                                 </td>
                                 <td class="whitespace-nowrap px-6 py-4">
                                     @if ($cashflow->type === 'in')
-                                        <span class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
+                                        <span
+                                            class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
                                             Money In
                                         </span>
                                     @else
-                                        <span class="inline-flex items-center rounded-full bg-red-100 dark:bg-red-900 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:text-red-300">
+                                        <span
+                                            class="inline-flex items-center rounded-full bg-red-100 dark:bg-red-900 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:text-red-300">
                                             Money Out
                                         </span>
                                     @endif
@@ -383,7 +403,8 @@ new class extends Component {
                             </h3>
 
                             <div class="mb-4">
-                                <label for="modalDescription" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label for="modalDescription"
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Description
                                 </label>
                                 <select wire:model="description" id="modalDescription" required
