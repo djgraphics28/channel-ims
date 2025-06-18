@@ -291,11 +291,11 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                     ['Total Returned', '₱' . number_format($this->totalReturned, 2)],
                     ['Total Refund', '₱' . number_format($this->totalRefund, 2)],
                     ['Total Sales', '₱' . number_format($this->totalAmount, 2)],
-                    ['H1 COD', '₱' ],
-                    ['H2 COD', '₱' ],
-                    ['Collection', '₱' ],
+                    ['H1 COD', '₱' . number_format($this->totalCodH1(), 2)],
+                    ['H2 COD', '₱' . number_format($this->totalCodH2(), 2)],
+                    ['Collection', '₱' . number_format($this->totalCollection(), 2) ],
                     ['Total Money-In', '₱' . number_format($this->totalMoneyIn(), 2)],
-                    ['Expenses', '₱' ],
+                    ['Expenses', '₱' . number_format($this->totalExpenses(), 2)],
                     ['Total Money-Out', '₱' . number_format($this->totalMoneyOut(), 2)],
                     ['Record/RCD', '₱' ],
                 ];
@@ -384,16 +384,54 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 
     public function totalMoneyIn(): float
     {
-        $totalMoneyIn = CashFlow::where('type', 'in')
+        $totalMoneyIn = CashFlow::where('description', 'Money In')
             ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()])
+            ->where('branch_id', auth()->user()->branch_id)
             ->sum('amount');
         return $totalMoneyIn ?? 0;
     }
     public function totalMoneyOut(): float
     {
-        $totalMoneyOut = CashFlow::where('type', 'out')
+        $totalMoneyOut = CashFlow::where('description', 'Money Out')
             ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()])
+            ->where('branch_id', auth()->user()->branch_id)
             ->sum('amount');
         return $totalMoneyOut ?? 0;
+    }
+
+    public function totalCodH1(): float
+    {
+        $totalCod = CashFlow::where('branch_id', auth()->user()->branch_id)
+        ->where('description', 'H1 COD')
+            ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()])
+            ->sum('amount');
+        return $totalCod ?? 0;
+    }
+
+    public function totalCodH2(): float
+    {
+        $totalCod = CashFlow::where('branch_id', auth()->user()->branch_id)
+        ->where('description', 'H2 COD')
+            ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()])
+            ->sum('amount');
+        return $totalCod ?? 0;
+    }
+
+    public function totalExpenses(): float
+    {
+        $totalExpenses = CashFlow::where('branch_id', auth()->user()->branch_id)
+        ->where('description', 'Expenses')
+            ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()])
+            ->sum('amount');
+        return $totalExpenses ?? 0;
+    }
+
+    public function totalCollection(): float
+    {
+        $totalCollection = CashFlow::where('branch_id', auth()->user()->branch_id)
+        ->where('description', 'Collection')
+            ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()])
+            ->sum('amount');
+        return $totalCollection ?? 0;
     }
 }
