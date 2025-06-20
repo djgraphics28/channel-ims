@@ -357,6 +357,101 @@ new class extends Component {
         </div>
     </div>
 
+    <!-- Best Sellers and Recent Activities -->
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2" wire:ignore>
+        <!-- Best Sellers Pie Chart -->
+        <div x-data="{
+            bestSellersChart: null,
+            init() {
+                this.initBestSellersChart();
+
+                $wire.on('bestSellersUpdated', () => {
+                    this.initBestSellersChart();
+                });
+            },
+            initBestSellersChart() {
+                if (this.bestSellersChart) {
+                    this.bestSellersChart.destroy();
+                }
+
+                const ctx = document.getElementById('bestSellersChart').getContext('2d');
+                this.bestSellersChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: $wire.bestSellersLabels,
+                        datasets: [{
+                            data: $wire.bestSellersData,
+                            backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff', '#ff9f40']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                align: 'center',
+                                labels: {
+                                    boxWidth: 15,
+                                    padding: 15,
+                                    color: document.documentElement.classList.contains('dark') ? '#fff' : '#000'
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Top Selling Products',
+                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#000',
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }"
+            class="relative h-96 overflow-hidden rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-gray-800">
+            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Best Sellers</h3>
+            <div class="h-3/4">
+                <canvas id="bestSellersChart"></canvas>
+            </div>
+        </div>
+
+
+        <!-- Recently Added Products -->
+        <div class="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-gray-800">
+            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Recently Added Products</h3>
+            <div class="space-y-4">
+                @php
+                    $recentProductsQuery = \App\Models\Product::latest();
+                    $recentProducts = $recentProductsQuery->take(5)->get();
+                @endphp
+
+                @foreach ($recentProducts as $product)
+                    <div
+                        class="flex justify-between items-center text-gray-700 dark:text-gray-300 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                    class="h-6 w-6 text-blue-600 dark:text-blue-300" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-semibold">{{ $product->name }}</p>
+                                <p class="text-sm">Stock: {{ $product->stock }} | Price: Php
+                                    {{ number_format($product->price, 2) }}/unit</p>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
+
     <div class="grid grid-cols-1 gap-6 md:grid-cols-1">
         <!-- Sales Graph -->
         <div x-data="{
@@ -581,100 +676,7 @@ new class extends Component {
         </div>
     </div>
 
-    <!-- Best Sellers and Recent Activities -->
-    <div class="grid grid-cols-1 gap-6 md:grid-cols-2" wire:ignore>
-        <!-- Best Sellers Pie Chart -->
-        <div x-data="{
-            bestSellersChart: null,
-            init() {
-                this.initBestSellersChart();
 
-                $wire.on('bestSellersUpdated', () => {
-                    this.initBestSellersChart();
-                });
-            },
-            initBestSellersChart() {
-                if (this.bestSellersChart) {
-                    this.bestSellersChart.destroy();
-                }
-
-                const ctx = document.getElementById('bestSellersChart').getContext('2d');
-                this.bestSellersChart = new Chart(ctx, {
-                    type: 'pie',
-                    data: {
-                        labels: $wire.bestSellersLabels,
-                        datasets: [{
-                            data: $wire.bestSellersData,
-                            backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff', '#ff9f40']
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'right',
-                                align: 'center',
-                                labels: {
-                                    boxWidth: 15,
-                                    padding: 15,
-                                    color: document.documentElement.classList.contains('dark') ? '#fff' : '#000'
-                                }
-                            },
-                            title: {
-                                display: true,
-                                text: 'Top Selling Products',
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#000',
-                                font: {
-                                    size: 16,
-                                    weight: 'bold'
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-        }"
-            class="relative h-96 overflow-hidden rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-gray-800">
-            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Best Sellers</h3>
-            <div class="h-3/4">
-                <canvas id="bestSellersChart"></canvas>
-            </div>
-        </div>
-
-
-        <!-- Recently Added Products -->
-        <div class="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-gray-800">
-            <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Recently Added Products</h3>
-            <div class="space-y-4">
-                @php
-                    $recentProductsQuery = \App\Models\Product::latest();
-                    $recentProducts = $recentProductsQuery->take(5)->get();
-                @endphp
-
-                @foreach ($recentProducts as $product)
-                    <div
-                        class="flex justify-between items-center text-gray-700 dark:text-gray-300 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg"
-                                    class="h-6 w-6 text-blue-600 dark:text-blue-300" fill="none"
-                                    viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="font-semibold">{{ $product->name }}</p>
-                                <p class="text-sm">Stock: {{ $product->stock }} | Price: Php
-                                    {{ number_format($product->price, 2) }}/unit</p>
-                            </div>
-                        </div>
-                    </div>
-                @endforeach
-            </div>
-        </div>
-    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
