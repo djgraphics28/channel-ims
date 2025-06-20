@@ -24,9 +24,10 @@ new class extends Component {
 
     public function loadPayments()
     {
-        $query = Payment::query()->with(['order'])
+        $query = Payment::query()
+            ->with(['order'])
             ->where('branch_id', auth()->user()->branch_id)
-            ->whereHas('order', function($q) {
+            ->whereHas('order', function ($q) {
                 $q->where('is_void', false);
             })
             ->whereBetween('created_at', [$this->startDate, Carbon::parse($this->endDate)->endOfDay()]);
@@ -68,14 +69,23 @@ new class extends Component {
             <p class="text-sm text-muted-foreground">Track and analyze payment transactions</p>
         </div>
 
-        <button wire:click="exportExcel"
-            class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-colors rounded-md bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24"
-                stroke="currentColor">
+        <button wire:click="exportExcel" wire:loading.attr="disabled" wire:target="exportExcel"
+            class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-colors rounded-md bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50">
+            <svg wire:loading.remove wire:target="exportExcel" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mr-2"
+                fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            Export Excel
+            <svg wire:loading wire:target="exportExcel" class="w-4 h-4 mr-2 animate-spin"
+                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                </circle>
+                <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                </path>
+            </svg>
+            <span wire:loading.remove wire:target="exportExcel">Export Excel</span>
+            <span wire:loading wire:target="exportExcel">Exporting...</span>
         </button>
     </div>
 
@@ -155,11 +165,13 @@ new class extends Component {
                         @forelse($payments as $payment)
                             <tr class="border-b transition-colors hover:bg-muted/50">
                                 <td class="p-4 align-middle">{{ $payment->created_at->format('M d, Y') }}</td>
-                                <td class="p-4 align-middle">{{ $payment->order?->order_number ?? 'No Receipt Number' }}</td>
+                                <td class="p-4 align-middle">{{ $payment->order?->order_number ?? 'No Receipt Number' }}
+                                </td>
                                 <td class="p-4 align-middle">{{ $payment->order?->customer->name ?? 'Walk-in' }}</td>
                                 <td class="p-4 align-middle">{{ ucfirst($payment->payment_method) }}</td>
                                 <td class="p-4 align-middle">{{ ucfirst($payment->payment_scheme) }}</td>
-                                <td class="p-4 text-right align-middle">{{ number_format($payment->amount_paid, 2) }}</td>
+                                <td class="p-4 text-right align-middle">{{ number_format($payment->amount_paid, 2) }}
+                                </td>
                             </tr>
                         @empty
                             <tr class="border-b transition-colors hover:bg-muted/50">

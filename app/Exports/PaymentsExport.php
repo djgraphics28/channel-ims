@@ -283,21 +283,23 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                 // Add summary section
                 $summaryStartRow = $totalRow + 2;
 
+                $totalRecord = (($this->totalCash ?? 0) + ($this->totalReturned ?? 0) + $this->totalCodH1() + $this->totalCodH2() + $this->totalCollection() + $this->totalMoneyIn()) - (($this->totalRefund ?? 0) + $this->totalExpenses() + $this->totalMoneyOut());
+
                 $summaryData = [
-                    ['Number of Transaction', $this->transactionCount],
-                    ['Total Cash', '₱' . number_format($this->totalCash, 2)],
-                    ['Total COD', '₱' . number_format($this->totalCOD, 2)],
-                    ['Total Sign', '₱' . number_format($this->totalSign, 2)],
-                    ['Total Returned', '₱' . number_format($this->totalReturned, 2)],
-                    ['Total Refund', '₱' . number_format($this->totalRefund, 2)],
-                    ['Total Sales', '₱' . number_format($this->totalAmount, 2)],
+                    ['Number of Transaction', $this->transactionCount ?? 0],
+                    ['Total Cash', '₱' . number_format($this->totalCash ?? 0, 2)],
+                    ['Total COD', '₱' . number_format($this->totalCOD ?? 0, 2)],
+                    ['Total Sign', '₱' . number_format($this->totalSign ?? 0, 2)],
+                    ['Total Returned', '₱' . number_format($this->totalReturned ?? 0, 2)],
+                    ['Total Refund', '₱' . number_format($this->totalRefund ?? 0, 2)],
+                    ['Total Sales', '₱' . number_format($this->totalAmount ?? 0, 2)],
                     ['H1 COD', '₱' . number_format($this->totalCodH1(), 2)],
                     ['H2 COD', '₱' . number_format($this->totalCodH2(), 2)],
                     ['Collection', '₱' . number_format($this->totalCollection(), 2) ],
                     ['Total Money-In', '₱' . number_format($this->totalMoneyIn(), 2)],
                     ['Expenses', '₱' . number_format($this->totalExpenses(), 2)],
                     ['Total Money-Out', '₱' . number_format($this->totalMoneyOut(), 2)],
-                    ['Record/RCD', '₱' ],
+                    ['Record/RCD', '₱' . number_format($totalRecord, 2)],
                 ];
 
                 // $summaryData = [
