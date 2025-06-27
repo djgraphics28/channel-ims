@@ -20,7 +20,7 @@ new class extends Component {
 
     public function mount()
     {
-        $this->incentives = Incentive::with('agents.employee')->latest()->get();
+        $this->incentives = Incentive::with('agents.employee')->where('branch_id', auth()->user()->branch_id)->latest()->get();
         $this->branch = Branch::find(auth()->user()->branch_id)?->code;
     }
 
