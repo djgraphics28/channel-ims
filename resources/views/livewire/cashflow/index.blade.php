@@ -134,6 +134,7 @@ new class extends Component {
     {
         $query = CashFlow::query()
             ->whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+            ->where('branch_id', auth()->user()->branch_id)
             ->latest();
 
         if ($this->filterType) {
@@ -154,23 +155,31 @@ new class extends Component {
         return [
             'cashflows' => $query->paginate(10),
             'counts' => [
-                'all' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])->count(),
+                'all' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('branch_id', auth()->user()->branch_id)
+                    ->count(),
                 'in' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('branch_id', auth()->user()->branch_id)
                     ->where('description', 'Money In')
                     ->count(),
                 'out' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('branch_id', auth()->user()->branch_id)
                     ->where('description', 'Money Out')
                     ->count(),
                 'expenses' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('branch_id', auth()->user()->branch_id)
                     ->where('description', 'Expenses')
                     ->count(),
                 'h1_cod' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('branch_id', auth()->user()->branch_id)
                     ->where('description', 'H1 COD')
                     ->count(),
                 'h2_cod' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('branch_id', auth()->user()->branch_id)
                     ->where('description', 'H2 COD')
                     ->count(),
                 'collection' => CashFlow::whereBetween('created_at', [$this->startDate . ' 00:00:00', $this->endDate . ' 23:59:59'])
+                    ->where('branch_id', auth()->user()->branch_id)
                     ->where('description', 'Collection')
                     ->count(),
             ],
