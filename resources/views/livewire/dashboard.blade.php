@@ -24,7 +24,7 @@ new class extends Component {
         if (
             auth()
                 ->user()
-                ->hasRole(['superadmin', 'admin'])
+                ->hasRole(['superadmin'])
         ) {
             $this->branches = Branch::all();
         } else {
@@ -43,7 +43,7 @@ new class extends Component {
         })->when(
             !auth()
                 ->user()
-                ->hasRole(['superadmin', 'admin']),
+                ->hasRole(['superadmin']),
             function ($query) {
                 $query->whereHas('order', function ($q) {
                     $q->where('branch_id', auth()->user()->branch_id);
@@ -80,7 +80,7 @@ new class extends Component {
                         ->when(
                             !auth()
                                 ->user()
-                                ->hasRole(['superadmin', 'admin']),
+                                ->hasRole(['superadmin']),
                             function ($q) {
                                 $q->where('branch_id', auth()->user()->branch_id);
                             },
@@ -98,7 +98,7 @@ new class extends Component {
         $this->totalTransactions = Order::when(
             !auth()
                 ->user()
-                ->hasRole(['superadmin', 'admin']),
+                ->hasRole(['superadmin']),
             function ($q) {
                 $q->where('branch_id', auth()->user()->branch_id);
             },
@@ -151,7 +151,7 @@ new class extends Component {
             ->when(
                 !auth()
                     ->user()
-                    ->hasRole(['superadmin', 'admin']),
+                    ->hasRole(['superadmin']),
                 function ($query) {
                     $query->where('branch_id', auth()->user()->branch_id);
                 },
@@ -190,7 +190,7 @@ new class extends Component {
             ->when(
                 !auth()
                     ->user()
-                    ->hasRole(['superadmin', 'admin']),
+                    ->hasRole(['superadmin']),
                 function ($query) {
                     $query->whereHas('order', function ($q) {
                         $q->where('branch_id', auth()->user()->branch_id)->where('is_void', false);
@@ -246,7 +246,7 @@ new class extends Component {
 
 <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
     <!-- Branch Filter (only show if user is admin/superadmin) -->
-    @if (auth()->user()->hasRole(['superadmin', 'admin']))
+    @if (auth()->user()->hasRole(['superadmin']))
         <div class="p-4 bg-white shadow-lg rounded-xl dark:bg-gray-800">
             <label for="branchFilter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by
                 Branch</label>
