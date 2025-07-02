@@ -74,6 +74,7 @@ new class extends Component {
             'orderItems as total_sold' => function ($query) {
                 $query->whereHas('order', function ($q) {
                     $q->where('status', 'completed')
+                        ->where('is_void', false)
                         ->when($this->selectedBranch, function ($q) {
                             $q->where('branch_id', $this->selectedBranch);
                         })
@@ -89,8 +90,11 @@ new class extends Component {
             },
         ])
             ->orderByDesc('total_sold')
-            ->take(5)
-            ->get();
+            ->get()
+            ->filter(function ($product) {
+                return $product->total_sold > 0;
+            })
+            ->take(5);
 
         $this->bestSellersData = $bestSellers->pluck('total_sold')->toArray();
         $this->bestSellersLabels = $bestSellers->pluck('name')->toArray();
@@ -106,11 +110,17 @@ new class extends Component {
             ->when($this->selectedBranch, function ($q) {
                 $q->where('branch_id', $this->selectedBranch);
             })
+            ->where('is_void', false) 
             ->whereDate('created_at', today())
             ->count();
 
         // Daily metrics
-        $dailySalesQuery = (clone $paymentQuery)->whereDate('created_at', today());
+        // $dailySalesQuery = (clone $paymentQuery)->whereDate('created_at', today());
+        $dailySalesQuery = (clone $paymentQuery)
+            ->whereDate('created_at', today())
+            ->whereHas('order', function ($q) {
+                $q->where('is_void', false);
+            });
         $dailySales = $dailySalesQuery->sum('amount_paid');
         $dailySalesForCoh = (clone $dailySalesQuery)->whereNotIn('payment_method', ['cod', 'sign'])->sum('amount_paid'); //i want to have a separate $dailySales for each Branches
         $branchSales = collect($this->branches)
