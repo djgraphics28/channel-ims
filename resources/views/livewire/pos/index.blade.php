@@ -141,11 +141,16 @@ new class extends Component {
     {
         $query = Order::query()
             ->withCount('order_items')
-            ->with(['customer', 'payment'])
+            ->with(['customer', 'payment','order_items.product'])
             ->where(function ($q) {
-                $q->where('order_number', 'like', '%' . $this->search . '%')->orWhereHas('customer', function ($q) {
-                    $q->where('name', 'like', '%' . $this->search . '%');
-                });
+                $q->where('order_number', 'like', '%' . $this->search . '%')
+                  ->orWhereHas('customer', function ($q) {
+                      $q->where('name', 'like', '%' . $this->search . '%');
+                  })
+                  ->orWhereHas('order_items.product', function($q) {
+                      $q->where('name', 'like', '%' . $this->search . '%')
+                        ->orWhere('description', 'like', '%' . $this->search . '%');
+                  });
             })
             ->where('branch_id', auth()->user()->branch_id);
 

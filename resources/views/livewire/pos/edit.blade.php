@@ -207,8 +207,9 @@ new class extends Component {
         try {
             // First find or create the order
             $order = Order::updateOrCreate(
-                ['order_number' => $this->receiptNumber],
+                ['id' => $this->orderId],
                 [
+                    'order_number' => $this->receiptNumber,
                     'customer_id' => $this->customerSelected,
                     'created_by' => Auth::id(),
                     'assisted_by' => $this->server,
