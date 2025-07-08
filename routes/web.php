@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
+use Illuminate\Support\Facades\Artisan;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -75,5 +76,15 @@ Route::get('product-updater', function () {
     }
 
 })->name('product-updater');
+
+Route::get('/down01', function () {
+    Artisan::call('down');
+    return 'Application is now in maintenance mode';
+});
+
+Route::get('/up00', function () {
+    Artisan::call('up');
+    return 'Application is now live';
+});
 
 require __DIR__ . '/auth.php';
