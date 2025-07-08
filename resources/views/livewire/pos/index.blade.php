@@ -80,15 +80,47 @@ new class extends Component {
     {
         $quotation = Order::find($this->quotationToVoid);
         if ($quotation) {
-            $quotation->update(['is_void' => true, 'order_number' => 'VOID-'. $quotation->order_number]); // Fixed the update syntax
+            $quotation->update(['is_void' => true, 'order_number' => 'VOID-' . $quotation->order_number]); // Fixed the update syntax
             $this->dispatch('notify', 'Quotation voided successfully!', 'success');
         }
         $this->confirmingVoid = false;
         $this->quotationToVoid = null;
     }
 
+    // public function printReceipt($orderId)
+    // {
+    //     $this->receiptModal = true;
+    //     $order = Order::with(['order_items', 'order_items.product', 'customer', 'payment'])->findOrFail($orderId);
+
+    //     $this->customerSelected = $order->customer_id;
+    //     $this->tax = $order->tax;
+    //     $this->discount = $order->discount;
+    //     $this->paymentMethod = $order->payment->payment_method;
+    //     $this->paymentScheme = $order->payment->payment_scheme;
+    //     $this->paymentStatus = $order->payment->payment_status;
+    //     $this->server = $order->assisted_by;
+    //     $this->notes = $order->notes;
+    //     $this->receiptNumber = $order->order_number;
+    //     $this->date = $order->created_at;
+    //     $this->partialPaymentAmount = $order->payment->amount_paid;
+
+    //     foreach ($order->order_items as $item) {
+    //         $this->cart[$item->product_id] = [
+    //             'name' => $item->product->name,
+    //             'unit' => $item->product->unit->name ?? 'pc',
+    //             'price' => $item->price,
+    //             'quantity' => $item->quantity,
+    //         ];
+    //     }
+
+    //     $this->calculateTotal();
+    // }
+
     public function printReceipt($orderId)
     {
+        // Reset all receipt-related properties first
+        $this->reset(['cart', 'customerSelected', 'tax', 'discount', 'paymentMethod', 'paymentScheme', 'paymentStatus', 'server', 'notes', 'receiptNumber', 'total', 'date', 'partialPaymentAmount']);
+
         $this->receiptModal = true;
         $order = Order::with(['order_items', 'order_items.product', 'customer', 'payment'])->findOrFail($orderId);
 
@@ -103,6 +135,9 @@ new class extends Component {
         $this->receiptNumber = $order->order_number;
         $this->date = $order->created_at;
         $this->partialPaymentAmount = $order->payment->amount_paid;
+
+        // Reset cart before adding new items
+        $this->cart = [];
 
         foreach ($order->order_items as $item) {
             $this->cart[$item->product_id] = [
@@ -141,16 +176,15 @@ new class extends Component {
     {
         $query = Order::query()
             ->withCount('order_items')
-            ->with(['customer', 'payment','order_items.product'])
+            ->with(['customer', 'payment', 'order_items.product'])
             ->where(function ($q) {
                 $q->where('order_number', 'like', '%' . $this->search . '%')
-                  ->orWhereHas('customer', function ($q) {
-                      $q->where('name', 'like', '%' . $this->search . '%');
-                  })
-                  ->orWhereHas('order_items.product', function($q) {
-                      $q->where('name', 'like', '%' . $this->search . '%')
-                        ->orWhere('description', 'like', '%' . $this->search . '%');
-                  });
+                    ->orWhereHas('customer', function ($q) {
+                        $q->where('name', 'like', '%' . $this->search . '%');
+                    })
+                    ->orWhereHas('order_items.product', function ($q) {
+                        $q->where('name', 'like', '%' . $this->search . '%')->orWhere('description', 'like', '%' . $this->search . '%');
+                    });
             })
             ->where('branch_id', auth()->user()->branch_id);
 
