@@ -75,6 +75,9 @@ new class extends Component {
                 $query->whereHas('order', function ($q) {
                     $q->where('status', 'completed')
                         ->where('is_void', false)
+                        ->whereHas('payment', function ($p) {
+                            $p->where('payment_method', '!=', 'delivery-only');
+                        })
                         ->when($this->selectedBranch, function ($q) {
                             $q->where('branch_id', $this->selectedBranch);
                         })
@@ -140,6 +143,7 @@ new class extends Component {
         $this->branchSales = $branchSales;
 
         $totalCash = (clone $dailySalesQuery)->where('payment_method', 'cash')->where('payment_status', 'paid')->sum('amount_paid');
+        $totalSalesOnly = (clone $dailySalesQuery)->where('payment_method', 'sales-only')->where('payment_status', 'paid')->sum('amount_paid');
         $totalCod = (clone $dailySalesQuery)
             ->where('payment_method', 'cod')
             ->whereIn('payment_status', ['paid', 'not-paid'])
@@ -179,6 +183,7 @@ new class extends Component {
             'totalCustomers' => $totalCustomers,
             'dailySales' => $dailySales,
             'totalCash' => $totalCash,
+            'totalSalesOnly' => $totalSalesOnly,
             'totalCod' => $totalCod,
             'totalSign' => $totalSign,
             'totalReturn' => $totalReturn,
@@ -236,6 +241,7 @@ new class extends Component {
             'cash' => (clone $paymentQuery)->where('payment_method', 'cash')->sum('amount_paid'),
             'cod' => (clone $paymentQuery)->where('payment_method', 'cod')->sum('amount_paid'),
             'sign' => (clone $paymentQuery)->where('payment_method', 'sign')->sum('amount_paid'),
+            'sales-only' => (clone $paymentQuery)->where('payment_method', 'sales-only')->sum('amount_paid'),
         ];
 
         return [
@@ -289,6 +295,10 @@ new class extends Component {
                 <div class="flex justify-between">
                     <span>Cash:</span>
                     <span class="font-semibold">Php {{ number_format($totalCash, 2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Sales Only:</span>
+                    <span class="font-semibold">Php {{ number_format($totalSalesOnly, 2) }}</span>
                 </div>
                 <div class="flex justify-between">
                     <span>COD:</span>
@@ -653,7 +663,7 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                 <div class="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
                     <p class="text-sm text-blue-600 dark:text-blue-300">Total Sales</p>
                     <p class="text-2xl font-bold text-blue-600 dark:text-blue-200">
@@ -676,6 +686,12 @@ new class extends Component {
                     <p class="text-sm text-indigo-600 dark:text-indigo-300">COD Payments</p>
                     <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-200">
                         ₱{{ number_format($salesChartData['methods']['cod'], 2) }}
+                    </p>
+                </div>
+                <div class="p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                    <p class="text-sm text-indigo-600 dark:text-indigo-300">Sales Only</p>
+                    <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-200">
+                        ₱{{ number_format($salesChartData['methods']['sales-only'], 2) }}
                     </p>
                 </div>
             </div>
