@@ -119,6 +119,8 @@ new class extends Component {
                     <option value="sign">Sign</option>
                     <option value="returned">Returned</option>
                     <option value="refund">Refund</option>
+                    <option value="sales-only">Sales Only</option>
+                    <option value="delivery-only">Delivery Only</option>
                 </select>
             </div>
 

@@ -242,6 +242,8 @@ new class extends Component {
                 'sign' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_method', 'sign'))->count(),
                 'refund' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_method', 'refund'))->count(),
                 'returned' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_method', 'returned'))->count(),
+                'sales-only' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_method', 'sales-only'))->count(),
+                'delivery-only' => (clone $dateQuery)->whereHas('payment', fn($q) => $q->where('payment_method', 'delivery-only'))->count(),
             ],
             'voidCounts' => [
                 'all' => $dateQuery->count(),
@@ -374,6 +376,14 @@ new class extends Component {
                     <button wire:click="$set('methodFilter', 'returned'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'returned' ? 'bg-red-100 dark:bg-red-900 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
                         Returned ({{ $methodCounts['returned'] }})
+                    </button>
+                    <button wire:click="$set('methodFilter', 'sales-only'), $resetPage()"
+                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'sales-only' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Sales Only ({{ $methodCounts['sales-only'] }})
+                    </button>
+                    <button wire:click="$set('methodFilter', 'delivery-only'), $resetPage()"
+                        class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'delivery-only' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
+                        Delivery Only ({{ $methodCounts['delivery-only'] }})
                     </button>
                 </div>
             </div>
