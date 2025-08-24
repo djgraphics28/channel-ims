@@ -250,7 +250,7 @@ new class extends Component {
                     );
                 }
             }
-            
+
             //Delivery Only
             elseif ($this->paymentMethod === 'delivery-only') {
                 do {
@@ -266,7 +266,7 @@ new class extends Component {
                         'total_amount' => 0,
                         'tax' => 0,
                         'discount' => 0,
-                        'notes' => 'Delivered to other Branch as part of Sales Only',
+                        'notes' => $this->notes ?: 'Delivered to other Branch as part of Sales Only',
                         'branch_id' => auth()->user()->branch_id,
                     ],
                 );
@@ -278,7 +278,7 @@ new class extends Component {
                         'payment_method' => $this->paymentMethod,
                         'payment_scheme' => $this->paymentScheme,
                         'payment_status' => $this->paymentStatus,
-                        'notes' => 'Delivered to other Branch as part of Sales Only',
+                        'notes' => $this->notes ?:'Delivered to other Branch as part of Sales Only',
                         'branch_id' => auth()->user()->branch_id,
                     ],
                 );
