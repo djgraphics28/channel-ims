@@ -417,6 +417,17 @@ new class extends Component {
         $this->customerModal = false;
     }
 
+    public function updatedPaymentMethod()
+    {
+        if ($this->paymentMethod === 'sales-only') {
+            $this->notes =  'Sales Processed and Stock Acquired from other branch';
+        } elseif ($this->paymentMethod === 'delivery-only') {
+            $this->notes = 'Delivered to other Branch as part of Sales Only';
+        } else {
+            $this->notes = '';
+        }
+    }
+
     public function orderNumber()
     {
         $prefix = 'QT';
@@ -609,6 +620,8 @@ new class extends Component {
                                         <option value="sign">SIGN</option>
                                         <option value="returned">RETURNED</option>
                                         <option value="refund">REFUND</option>
+                                        <option value="sales-only">Sales Only</option>
+                                        <option value="delivery-only">Inventory Only</option>
                                     </flux:select>
                                 </div>
                                 <div>

@@ -203,87 +203,69 @@ new class extends Component {
         try {
             //Sales Only
             if ($this->paymentMethod === 'sales-only') {
-                $qt = Order::updateOrCreate(
-                    ['order_number' => $this->receiptNumber],
-                    [
-                        'customer_id' => $this->customerSelected,
-                        'created_by' => Auth::user()->id,
-                        'assisted_by' => $this->server,
-                        'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
-                        'tax' => $this->tax,
-                        'discount' => $this->discount,
-                        'notes' => $this->notes ?: 'Sales Processed and Stock Acquired from other branch',
-                        'branch_id' => auth()->user()->branch_id,
-                    ],
-                );
+                $qt = Order::create([
+                    'order_number' => $this->receiptNumber,
+                    'customer_id' => $this->customerSelected,
+                    'created_by' => Auth::user()->id,
+                    'assisted_by' => $this->server,
+                    'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
+                    'tax' => $this->tax,
+                    'discount' => $this->discount,
+                    'notes' => $this->notes ?: 'Sales Processed and Stock Acquired from other branch',
+                    'branch_id' => auth()->user()->branch_id,
+                    'status' => 'completed',
+                ]);
 
-                $qt->payment()->updateOrCreate(
-                    ['order_id' => $qt->id],
-                    [
-                        'amount_paid' => $this->paymentScheme == 'partial-payment'
-                            ? $this->partialPaymentAmount
-                            : $this->total + $this->total * ($this->tax / 100) - $this->discount,
-                        'payment_method' => $this->paymentMethod,
-                        'payment_scheme' => $this->paymentScheme,
-                        'payment_status' => $this->paymentStatus,
-                        'notes' => $this->notes ?: 'Sales Processed and Stock Acquired from other branch',
-                        'branch_id' => auth()->user()->branch_id,
-                    ],
-                );
-
-                $qt->update(['status' => 'completed']);
+                $qt->payment()->create([
+                    'amount_paid' => $this->paymentScheme == 'partial-payment'
+                        ? $this->partialPaymentAmount
+                        : $this->total + $this->total * ($this->tax / 100) - $this->discount,
+                    'payment_method' => $this->paymentMethod,
+                    'payment_scheme' => $this->paymentScheme,
+                    'payment_status' => $this->paymentStatus,
+                    'notes' => $this->notes ?: 'Sales Processed and Stock Acquired from other branch',
+                    'branch_id' => auth()->user()->branch_id,
+                ]);
 
                 // Save order items WITHOUT touching inventory
                 foreach ($this->cart as $productId => $item) {
-                    \DB::table('order_items')->updateOrInsert(
-                        [
-                            'order_id'   => $qt->id,
-                            'product_id' => $productId,
-                        ],
-                        [
-                            'quantity'   => $item['quantity'],
-                            'price'      => $item['price'],
-                            'subtotal'   => $item['quantity'] * $item['price'],
-                            'updated_at' => now(),
-                            'created_at' => now(),
-                        ]
-                    );
+                    \DB::table('order_items')->insert([
+                        'order_id'   => $qt->id,
+                        'product_id' => $productId,
+                        'quantity'   => $item['quantity'],
+                        'price'      => $item['price'],
+                        'subtotal'   => $item['quantity'] * $item['price'],
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ]);
                 }
             }
 
             //Delivery Only
             elseif ($this->paymentMethod === 'delivery-only') {
-                do {
-                    $this->receiptNumber = 'DELIVERY-' . rand(100, 999);
-                } while (Order::where('order_number', $this->receiptNumber)->exists());
+                $this->receiptNumber = 'INVENTORY-' . now()->format('YmdHis') . '-' . rand(100, 999);
 
-                $qt = Order::updateOrCreate(
-                    ['order_number' => $this->receiptNumber],
-                    [
-                        'customer_id' => $this->customerSelected,
-                        'created_by' => Auth::user()->id,
-                        'assisted_by' => $this->server,
-                        'total_amount' => 0,
-                        'tax' => 0,
-                        'discount' => 0,
-                        'notes' => $this->notes ?: 'Delivered to other Branch as part of Sales Only',
-                        'branch_id' => auth()->user()->branch_id,
-                    ],
-                );
+                $qt = Order::create([
+                    'order_number' => $this->receiptNumber,
+                    'customer_id' => $this->customerSelected,
+                    'created_by' => Auth::user()->id,
+                    'assisted_by' => $this->server,
+                    'total_amount' => 0,
+                    'tax' => 0,
+                    'discount' => 0,
+                    'notes' => $this->notes ?: 'Delivered to other Branch as part of Sales Only',
+                    'branch_id' => auth()->user()->branch_id,
+                    'status' => 'completed',
+                ]);
 
-                $qt->payment()->updateOrCreate(
-                    ['order_id' => $qt->id],
-                    [
-                        'amount_paid' => 0,
-                        'payment_method' => $this->paymentMethod,
-                        'payment_scheme' => $this->paymentScheme,
-                        'payment_status' => $this->paymentStatus,
-                        'notes' => $this->notes ?:'Delivered to other Branch as part of Sales Only',
-                        'branch_id' => auth()->user()->branch_id,
-                    ],
-                );
-
-                $qt->update(['status' => 'completed']);
+                $qt->payment()->create([
+                    'amount_paid' => 0,
+                    'payment_method' => $this->paymentMethod,
+                    'payment_scheme' => $this->paymentScheme,
+                    'payment_status' => $this->paymentStatus,
+                    'notes' => $this->notes ?:'Delivered to other Branch as part of Sales Only',
+                    'branch_id' => auth()->user()->branch_id,
+                ]);
 
                 // Deduct inventory
                 foreach ($this->cart as $productId => $item) {
@@ -292,65 +274,51 @@ new class extends Component {
                         $product->product_stock->decrement('stock', $item['quantity']);
                     }
 
-                    $qt->order_items()->updateOrCreate(
-                        [
-                            'product_id' => $productId,
-                            'order_id' => $qt->id,
-                        ],
-                        [
-                            'quantity' => $item['quantity'],
-                            'price' => $item['price'],
-                            'subtotal' => $item['quantity'] * $item['price'],
-                        ],
-                    );
+                    $qt->order_items()->create([
+                        'product_id' => $productId,
+                        'quantity' => $item['quantity'],
+                        'price' => $item['price'],
+                        'subtotal' => $item['quantity'] * $item['price'],
+                    ]);
                 }
             }
 
             // Regular Quotation
-            else{
-                $qt = Order::updateOrCreate(
-                    ['order_number' => $this->receiptNumber],
-                    [
-                        'customer_id' => $this->customerSelected,
-                        'created_by' => Auth::user()->id,
-                        'assisted_by' => $this->server,
-                        'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
-                        'tax' => $this->tax,
-                        'discount' => $this->discount,
-                        'notes' => $this->notes,
-                        'branch_id' => auth()->user()->branch_id,
-                    ],
-                );
+            else {
+                $qt = Order::create([
+                    'order_number' => $this->receiptNumber,
+                    'customer_id' => $this->customerSelected,
+                    'created_by' => Auth::user()->id,
+                    'assisted_by' => $this->server,
+                    'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
+                    'tax' => $this->tax,
+                    'discount' => $this->discount,
+                    'notes' => $this->notes,
+                    'branch_id' => auth()->user()->branch_id,
+                    'status' => 'completed',
+                ]);
 
-                $qt->payment()->updateOrCreate(
-                    ['order_id' => $qt->id],
-                    [
-                        'amount_paid' => $this->paymentScheme == 'partial-payment' ? $this->partialPaymentAmount : $this->total + $this->total * ($this->tax / 100) - $this->discount,
-                        'payment_method' => $this->paymentMethod,
-                        'payment_scheme' => $this->paymentScheme,
-                        'payment_status' => $this->paymentStatus,
-                        'notes' => $this->notes,
-                        'branch_id' => auth()->user()->branch_id,
-                    ],
-                );
-
-                $qt->update(['status' => 'completed']);
+                $qt->payment()->create([
+                    'amount_paid' => $this->paymentScheme == 'partial-payment' ? $this->partialPaymentAmount : $this->total + $this->total * ($this->tax / 100) - $this->discount,
+                    'payment_method' => $this->paymentMethod,
+                    'payment_scheme' => $this->paymentScheme,
+                    'payment_status' => $this->paymentStatus,
+                    'notes' => $this->notes,
+                    'branch_id' => auth()->user()->branch_id,
+                ]);
 
                 foreach ($this->cart as $productId => $item) {
                     $product = Product::find($productId);
-                    $product->product_stock->decrement('stock', $item['quantity']);
+                    if ($product && $product->product_stock) {
+                        $product->product_stock->decrement('stock', $item['quantity']);
+                    }
 
-                    $qt->order_items()->updateOrCreate(
-                        [
-                            'product_id' => $productId,
-                            'order_id' => $qt->id,
-                        ],
-                        [
-                            'quantity' => $item['quantity'],
-                            'price' => $item['price'],
-                            'subtotal' => $item['quantity'] * $item['price'],
-                        ],
-                    );
+                    $qt->order_items()->create([
+                        'product_id' => $productId,
+                        'quantity' => $item['quantity'],
+                        'price' => $item['price'],
+                        'subtotal' => $item['quantity'] * $item['price'],
+                    ]);
                 }
             }
 
@@ -425,6 +393,17 @@ new class extends Component {
         } catch (\Exception $e) {
             DB::rollback();
             flash()->error('Error creating customer: ' . $e->getMessage());
+        }
+    }
+
+    public function updatedPaymentMethod()
+    {
+        if ($this->paymentMethod === 'sales-only') {
+            $this->notes =  'Sales Processed and Stock Acquired from other branch';
+        } elseif ($this->paymentMethod === 'delivery-only') {
+            $this->notes = 'Delivered to other Branch as part of Sales Only';
+        } else {
+            $this->notes = '';
         }
     }
 
@@ -611,7 +590,7 @@ new class extends Component {
                                             <option value="returned">RETURNED</option>
                                             <option value="refund">REFUND</option>
                                             <option value="sales-only">Sales Only</option>
-                                            <option value="delivery-only">Delivery Only</option>
+                                            <option value="delivery-only">Inventory Only</option>
                                         </flux:select>
                                     </div>
                                     <div>

@@ -502,7 +502,7 @@ new class extends Component {
                                         ₱{{ number_format($quotation->total_amount - $quotation->payment->amount_paid, 2) ?? 0 }}
                                     </td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
-                                        {{ strtoupper($quotation->payment->payment_method ?? '') }}</td>
+                                        {{ strtoupper($quotation->payment->payment_method == 'delivery-only' ? 'inventory-only' : $quotation->payment->payment_method) }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
                                         {{ strtoupper($quotation->payment->payment_scheme ?? '') }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 text-center">
@@ -778,7 +778,7 @@ new class extends Component {
                     </div>
                     <br>
                     <div class="text-sm">
-                        <span><small>Payment Method: {{ strtoupper($paymentMethod) }}</small></span><br>
+                        <span><small>Payment Method: {{ strtoupper($paymentMethod == 'delivery-only' ? 'INVENTORY-ONLY' : $paymentMethod) }}</small></span><br>
                         <span><small>Payment Scheme: {{ strtoupper($paymentScheme) }}</small></span><br>
                         <span><small>Payment Status: {{ strtoupper($paymentStatus) }}</small></span>
                     </div>
