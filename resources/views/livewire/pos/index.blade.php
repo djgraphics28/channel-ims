@@ -383,7 +383,7 @@ new class extends Component {
                     </button>
                     <button wire:click="$set('methodFilter', 'delivery-only'), $resetPage()"
                         class="px-3 py-1 text-xs rounded-full border {{ $methodFilter === 'delivery-only' ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200' }}">
-                        Delivery Only ({{ $methodCounts['delivery-only'] }})
+                        Inventory Only ({{ $methodCounts['delivery-only'] }})
                     </button>
                 </div>
             </div>
