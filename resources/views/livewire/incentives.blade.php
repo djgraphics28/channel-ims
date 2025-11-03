@@ -17,6 +17,8 @@ new class extends Component {
     public $deleteId;
     public $expandedIncentive = null;
     public $branch;
+    public $cashTotal = 0;
+    public $cashIncentive = 0;
 
     public function mount()
     {
@@ -101,6 +103,71 @@ new class extends Component {
             $this->expandedIncentive = $id;
         }
     }
+
+    public function getCashTotalsFor($incentive)
+    {
+        // Get all cash-related payments (cash, refund, returned)
+        $cashPayments = \App\Models\Payment::query()
+            ->whereIn('payment_method', ['cash', 'refund', 'returned'])
+            ->where('payment_status', 'paid')
+            ->whereHas('order', function ($query) use ($incentive) {
+                $query->whereBetween('created_at', [$incentive->start, $incentive->end])
+                    ->whereNotNull('assisted_by')
+                    ->where('is_void', 0);
+            })
+            ->with('order') // eager load related orders
+            ->get();
+
+        // Total cash paid (sum from payments)
+        $cashTotal = $cashPayments->sum('amount_paid');
+
+        // Total order amount from all associated orders
+        $orderTotal = $cashPayments->sum(fn($payment) => $payment->order?->total_amount ?? 0);
+
+        // Incentive is based on cash total (same as before)
+        $cashIncentive = $cashTotal * 0.00025;
+
+        return [
+            'payment_total' => $cashTotal,
+            'order_total' => $orderTotal,
+            'incentive' => $cashIncentive,
+        ];
+    }
+
+    public function getCashIncentiveDetailsForAgent($agent, $incentive)
+    {
+        // Get all CASH payments linked to orders served by this agent
+        $cashPayments = \App\Models\Payment::query()
+            ->where('payment_method', 'cash')
+            ->where('payment_status', 'paid')
+            ->whereHas('order', function ($query) use ($agent, $incentive) {
+                $query->where('assisted_by', $agent->agent_id)
+                    ->whereBetween('created_at', [$incentive->start, $incentive->end])
+                    ->where('is_void', 0);
+            })
+            ->with('order')
+            ->get();
+
+        // 1. Total CASH sales amount
+        $cashSales = $cashPayments->sum('amount_paid');
+
+        // 2. Total # of CASH receipts
+        $receiptCount = $cashPayments->count();
+
+        // 3. Apply formulas
+        $salesIncentive = $cashSales * 0.00025;    // 0.025%
+        $receiptIncentive = $receiptCount * 0.25;  // ₱0.25 per receipt
+        $totalIncentive = $salesIncentive + $receiptIncentive;
+
+        return [
+            'total_sales' => $cashSales,
+            'sales_incentive' => $salesIncentive,
+            'receipt_count' => $receiptCount,
+            'receipt_incentive' => $receiptIncentive,
+            'total_incentive' => $totalIncentive,
+        ];
+    }
+
 
     public function exportIncentive($id)
     {
@@ -348,8 +415,12 @@ new class extends Component {
                                     {{ date('M d, Y', strtotime($incentive->end)) }}</td>
                                 {{-- <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                                     {{ $incentive->percentage }}%</td> --}}
+                                @php
+                                    $cash = $this->getCashTotalsFor($incentive);
+                                @endphp
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                    ₱{{ number_format($incentive->agents->sum('total_order_amount'), 2) }}
+                                    <!-- ₱{{ number_format($incentive->agents->sum('total_order_amount'), 2) }} -->
+                                     ₱{{ number_format($cash['order_total'], 2) }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                                     <button wire:click="toggleAgents({{ $incentive->id }})"
@@ -358,7 +429,8 @@ new class extends Component {
                                     </button>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                    ₱{{ number_format($incentive->agents->sum('amount'), 2) }}
+                                    <!-- ₱{{ number_format($incentive->agents->sum('amount'), 2) }} -->
+                                     ₱{{ number_format($cash['incentive'], 2) }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                     {{-- <button wire:click="editIncentive({{ $incentive->id }})"
@@ -409,12 +481,15 @@ new class extends Component {
                                                     <tbody
                                                         class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
                                                         @foreach ($incentive->agents as $agent)
-                                                            @php
+                                                            <!-- @php
                                                                 $incentiveAmount = $agent->amount;
                                                                 $orderCountIncentives = $agent->order_count * 0.25;
                                                                 $totalIncentives =
                                                                     $incentiveAmount + $orderCountIncentives;
                                                                 $totals = ($totals ?? 0) + $totalIncentives;
+                                                            @endphp -->
+                                                            @php
+                                                                $cash = $this->getCashIncentiveDetailsForAgent($agent, $incentive);
                                                             @endphp
                                                             <tr>
                                                                 <td
@@ -426,23 +501,28 @@ new class extends Component {
                                                                     {{ $agent->agent_id }}</td>
                                                                 <td
                                                                     class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
-                                                                    ₱{{ number_format($agent->total_order_amount, 2) }}
+                                                                    <!-- ₱{{ number_format($agent->total_order_amount, 2) }} -->
+                                                                    ₱{{ number_format($cash['total_sales'], 2) }}
                                                                 </td>
                                                                 <td
                                                                     class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
-                                                                    ₱{{ number_format($incentiveAmount, 2) }}</td>
+                                                                    <!-- ₱{{ number_format($incentiveAmount, 2) }}</td> -->
+                                                                    ₱{{ number_format($cash['sales_incentive'], 2) }}
                                                                 <td
                                                                     class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
-                                                                    {{ $agent->order_count }}</td>
+                                                                    <!-- {{ $agent->order_count }}</td> -->
+                                                                    {{ $cash['receipt_count'] }}
                                                                 <td
                                                                     class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
-                                                                    ₱{{ number_format($orderCountIncentives, 2) }}</td>
+                                                                    <!-- ₱{{ number_format($orderCountIncentives, 2) }}</td> -->
+                                                                    ₱{{ number_format($cash['receipt_incentive'], 2) }}
                                                                 <td
                                                                     class="px-4 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
-                                                                    ₱{{ number_format($totalIncentives, 2) }}</td>
+                                                                    <!-- ₱{{ number_format($totalIncentives, 2) }}</td> -->
+                                                                    ₱{{ number_format($cash['total_incentive'], 2) }}
                                                             </tr>
                                                         @endforeach
-                                                        <tr class="bg-gray-50 dark:bg-gray-700 font-semibold">
+                                                        <!-- <tr class="bg-gray-50 dark:bg-gray-700 font-semibold">
                                                             <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100"
                                                                 colspan="2">
                                                                 Totals</td>
@@ -464,6 +544,31 @@ new class extends Component {
                                                             <td
                                                                 class="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 text-center">
                                                                 ₱{{ number_format($totals, 2) }}</td>
+                                                        </tr> -->
+                                                        @php
+                                                            $totalCashSales = 0;
+                                                            $totalSalesIncentive = 0;
+                                                            $totalReceipts = 0;
+                                                            $totalReceiptIncentive = 0;
+                                                            $grandTotalIncentive = 0;
+
+                                                            foreach ($incentive->agents as $agent) {
+                                                                $cash = $this->getCashIncentiveDetailsForAgent($agent, $incentive);
+                                                                $totalCashSales += $cash['total_sales'];
+                                                                $totalSalesIncentive += $cash['sales_incentive'];
+                                                                $totalReceipts += $cash['receipt_count'];
+                                                                $totalReceiptIncentive += $cash['receipt_incentive'];
+                                                                $grandTotalIncentive += $cash['total_incentive'];
+                                                            }
+                                                        @endphp
+
+                                                        <tr class="bg-gray-50 dark:bg-gray-700 font-semibold">
+                                                            <td colspan="2" class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">Totals</td>
+                                                            <td class="text-center">₱{{ number_format($totalCashSales, 2) }}</td>
+                                                            <td class="text-center">₱{{ number_format($totalSalesIncentive, 2) }}</td>
+                                                            <td class="text-center">{{ $totalReceipts }}</td>
+                                                            <td class="text-center">₱{{ number_format($totalReceiptIncentive, 2) }}</td>
+                                                            <td class="text-center">₱{{ number_format($grandTotalIncentive, 2) }}</td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
