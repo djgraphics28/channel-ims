@@ -205,84 +205,72 @@ new class extends Component {
     {
         DB::beginTransaction();
         try {
-            // First find or create the order
-            $order = Order::updateOrCreate(
-                ['id' => $this->orderId],
-                [
-                    'order_number' => $this->receiptNumber,
-                    'customer_id' => $this->customerSelected,
-                    'created_by' => Auth::id(),
-                    'assisted_by' => $this->server,
-                    'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
-                    'tax' => $this->tax,
-                    'discount' => $this->discount,
-                    'notes' => $this->notes,
-                ],
-            );
+            // 1. Get the original order BEFORE making any changes
+            $oldOrder = Order::with('order_items')->findOrFail($this->orderId);
 
-            // Handle payment
-            $order->payment()->updateOrCreate(
-                ['order_id' => $order->id],
-                [
-                    'amount_paid' => $this->paymentScheme == 'partial-payment' ? $this->partialPaymentAmount : $this->total + $this->total * ($this->tax / 100) - $this->discount,
-                    'payment_method' => $this->paymentMethod,
-                    'payment_scheme' => $this->paymentScheme,
-                    'payment_status' => $this->paymentStatus,
-                    'notes' => $this->notes,
-                ],
-            );
-
-            // If this is an update (orderId exists and is different from the new order)
-            if ($this->orderId && $this->orderId != $order->id) {
-                $oldOrder = Order::with('order_items')->find($this->orderId);
-
-                // Return stock from old order items
-                if ($oldOrder) {
-                    foreach ($oldOrder->order_items as $item) {
-                        $product = Product::find($item->product_id);
-                        if ($product && $product->product_stock) {
-                            $product->product_stock->increment('stock', $item->quantity);
-                        }
-                    }
-
-                    // Delete old order items but keep the order record
-                    $oldOrder->order_items()->delete();
-
-                    // Optionally mark old order as cancelled or updated
-                    $oldOrder->update(['status' => 'updated']); // or 'cancelled'
+            // 2. Restore stock from the OLD order items first
+            foreach ($oldOrder->order_items as $item) {
+                $product = Product::find($item->product_id);
+                if ($product && $product->product_stock) {
+                    $product->product_stock->increment('stock', $item->quantity);
                 }
             }
 
-            // Clear existing items for the current order (if any)
-            $order->order_items()->delete();
+            // 3. Update the order in-place
+            $oldOrder->update([
+                'order_number' => $this->receiptNumber,
+                'customer_id'  => $this->customerSelected,
+                'created_by'   => Auth::id(),
+                'assisted_by'  => $this->server,
+                'total_amount' => $this->total + ($this->total * floatval($this->tax)) / 100 - floatval($this->discount),
+                'tax'          => $this->tax,
+                'discount'     => $this->discount,
+                'notes'        => $this->notes,
+            ]);
 
-            // Add new order items and decrement stock
+            // 4. Update the payment
+            $oldOrder->payment()->updateOrCreate(
+                ['order_id' => $oldOrder->id],
+                [
+                    'amount_paid'    => $this->paymentScheme == 'partial-payment'
+                        ? $this->partialPaymentAmount
+                        : $this->total + $this->total * ($this->tax / 100) - $this->discount,
+                    'payment_method' => $this->paymentMethod,
+                    'payment_scheme' => $this->paymentScheme,
+                    'payment_status' => $this->paymentStatus,
+                    'notes'          => $this->notes,
+                ]
+            );
+
+            // 5. Delete old order items
+            $oldOrder->order_items()->delete();
+
+            // 6. Re-create items and deduct stock with NEW quantities
             foreach ($this->cart as $productId => $item) {
                 $product = Product::find($productId);
                 if ($product) {
-                    // Decrement stock only if product exists
                     if ($product->product_stock) {
                         $product->product_stock->decrement('stock', $item['quantity']);
                     }
-
-                    $order->order_items()->create([
+                    $oldOrder->order_items()->create([
                         'product_id' => $productId,
-                        'quantity' => $item['quantity'],
-                        'price' => $item['price'],
-                        'subtotal' => $item['quantity'] * $item['price'],
+                        'quantity'   => $item['quantity'],
+                        'price'      => $item['price'],
+                        'subtotal'   => $item['quantity'] * $item['price'],
                     ]);
                 }
             }
 
             DB::commit();
 
-            flash()->success('Quotation processed successfully!');
+            flash()->success('Quotation updated successfully!');
             $this->dispatch('print-receipt');
             $this->receiptModal = false;
             $this->resetCart();
+
         } catch (\Exception $e) {
             DB::rollback();
-            flash()->error('Error processing quotation: ' . $e->getMessage());
+            flash()->error('Error updating quotation: ' . $e->getMessage());
         }
     }
     // public function confirmAndPrint()
