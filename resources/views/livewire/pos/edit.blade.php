@@ -411,9 +411,7 @@ new class extends Component {
             $this->notes =  'Sales Processed and Stock Acquired from other branch';
         } elseif ($this->paymentMethod === 'delivery-only') {
             $this->notes = 'Delivered to other Branch as part of Sales Only';
-        } else {
-            $this->notes = '';
-        }
+        } 
     }
 
     public function orderNumber()

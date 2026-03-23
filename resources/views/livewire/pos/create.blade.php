@@ -172,6 +172,7 @@ new class extends Component {
         $this->cart = [];
         session()->forget('cart');
         $this->total = 0;
+        $this->discount = 0;
         $this->dispatch('notify', 'Cart cleared!', 'success');
     }
 
