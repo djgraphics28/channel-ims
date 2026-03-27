@@ -119,6 +119,7 @@ new class extends Component {
                 'unit' => $product->unit_id,
                 'price' => $product->selling_price,
                 'quantity' => 1,
+                'stock' => $product->product_stock->stock ?? 0,
             ];
         }
 
@@ -138,15 +139,37 @@ new class extends Component {
     public function updateQuantity($productId, $change)
     {
         $product = Product::find($productId);
-
-        if ($change > 0 && $this->cart[$productId]['quantity'] >= $product->product_stock->stock) {
-            $this->dispatch('notify', 'Maximum stock reached!', 'error');
-            return;
-        }
+        $maxStock = $product->product_stock->stock ?? 0;
 
         $this->cart[$productId]['quantity'] += $change;
 
+        if ($this->cart[$productId]['quantity'] > $maxStock) {
+            $this->cart[$productId]['quantity'] = $maxStock;
+            $this->dispatch('notify', 'Maximum stock reached!', 'warning');
+        }
+
         if ($this->cart[$productId]['quantity'] <= 0) {
+            unset($this->cart[$productId]);
+        }
+
+        $this->saveCartToSession();
+        $this->calculateTotal();
+    }
+
+    public function updatedCart($value, $key)
+    {
+        if (!str_ends_with($key, '.quantity')) return;
+
+        $productId = explode('.', $key)[0];
+        if (!isset($this->cart[$productId])) return;
+
+        $maxStock = Product::find($productId)->product_stock->stock ?? 0;
+        $qty = floatval($this->cart[$productId]['quantity']);
+
+        if ($qty > $maxStock) {
+            $this->cart[$productId]['quantity'] = $maxStock;
+            $this->dispatch('notify', 'Quantity capped to available stock: ' . $maxStock, 'warning');
+        } elseif ($qty <= 0) {
             unset($this->cart[$productId]);
         }
 
@@ -172,6 +195,7 @@ new class extends Component {
         $this->cart = [];
         session()->forget('cart');
         $this->total = 0;
+        $this->discount = 0;
         $this->dispatch('notify', 'Cart cleared!', 'success');
     }
 
@@ -549,6 +573,9 @@ new class extends Component {
                                                         onfocus="selectIfZero(this)"
                                                         onkeydown="handleZeroBackspace(event, this)"
                                                         oninput="validateDecimal(this)" />
+                                                @if ($item['quantity'] >= ($item['stock'] ?? 0))
+                                                    <p class="text-xs text-orange-500 mt-1">Max stock: {{ $item['stock'] ?? 0 }}</p>
+                                                @endif
                                                     <button wire:click="updateQuantity({{ $productId }}, 1)"
                                                         class="rounded-full bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-1">+</button>
                                                 </div>
