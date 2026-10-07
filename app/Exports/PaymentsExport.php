@@ -75,6 +75,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                 'Date',
                 'Reference Number',
                 'Customer Name',
+                'Server Name',
                 'Payment Method',
                 'Payment Scheme',
                 'Amount (₱)'
@@ -119,6 +120,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
             $payment->created_at->format('Y-m-d'),
             $payment->order->order_number,
             $payment->order->customer->name ?? 'Walk-In',
+            $payment->order->server->full_name ?? '',
             ucfirst($payment->payment_method),
             ucfirst($payment->payment_scheme),
             $payment->amount_paid,
@@ -133,11 +135,11 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
             ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE);
 
         // Header styles
-        $sheet->mergeCells('A1:F1');
-        $sheet->mergeCells('A2:F2');
-        $sheet->mergeCells('A3:F3');
+        $sheet->mergeCells('A1:G1');
+        $sheet->mergeCells('A2:G2');
+        $sheet->mergeCells('A3:G3');
 
-        $sheet->getStyle('A1:F1')->applyFromArray([
+        $sheet->getStyle('A1:G1')->applyFromArray([
             'font' => [
                 'bold' => true,
                 'size' => 16,
@@ -153,7 +155,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
             ]
         ]);
 
-        $sheet->getStyle('A2:F3')->applyFromArray([
+        $sheet->getStyle('A2:G3')->applyFromArray([
             'font' => [
                 'size' => 11,
                 'color' => ['rgb' => '333333']
@@ -168,7 +170,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         ]);
 
         // Column headers style
-        $sheet->getStyle('A5:F5')->applyFromArray([
+        $sheet->getStyle('A5:G5')->applyFromArray([
             'font' => [
                 'bold' => true,
                 'color' => ['rgb' => 'FFFFFF']
@@ -190,7 +192,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 
         // Data rows style
         $lastDataRow = $sheet->getHighestRow();
-        $dataRange = 'A6:E' . $lastDataRow;
+        $dataRange = 'A6:F' . $lastDataRow;
 
         $sheet->getStyle($dataRange)->applyFromArray([
             'borders' => [
@@ -207,17 +209,17 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
         // Alternate row coloring
         for ($i = 6; $i <= $lastDataRow; $i++) {
             $fillColor = $i % 2 == 0 ? 'FFFFFF' : 'EFF2F7';
-            $sheet->getStyle('A' . $i . ':F' . $i)->getFill()
+            $sheet->getStyle('A' . $i . ':G' . $i)->getFill()
                 ->setFillType(Fill::FILL_SOLID)
                 ->setStartColor(new Color($fillColor));
         }
 
         // Format amount column with ₱ sign
-        $sheet->getStyle('F6:F' . $lastDataRow)->getNumberFormat()
+        $sheet->getStyle('G6:G' . $lastDataRow)->getNumberFormat()
             ->setFormatCode('"₱"#,##0.00');
 
         // Auto-size columns for better fit
-        foreach (range('A', 'F') as $column) {
+        foreach (range('A', 'G') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
@@ -234,11 +236,11 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
 
                 // Add Total row
                 $totalRow = $lastRow + 1;
-                $sheet->setCellValue('E' . $totalRow, 'TOTAL:');
-                $sheet->setCellValue('F' . $totalRow, $this->totalAmount);
+                $sheet->setCellValue('F' . $totalRow, 'TOTAL:');
+                $sheet->setCellValue('G' . $totalRow, $this->totalAmount);
 
                 // Style the label cell
-                $sheet->getStyle('E' . $totalRow)->applyFromArray([
+                $sheet->getStyle('F' . $totalRow)->applyFromArray([
                     'font' => [
                         'bold' => true,
                         'size' => 12,
@@ -258,7 +260,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                 ]);
 
                 // Style the value cell
-                $sheet->getStyle('F' . $totalRow)->applyFromArray([
+                $sheet->getStyle('G' . $totalRow)->applyFromArray([
                     'font' => [
                         'bold' => true,
                         'size' => 12,
@@ -380,7 +382,7 @@ class PaymentsExport implements FromQuery, WithHeadings, WithMapping, WithStyles
                 $sheet->getColumnDimension('B')->setWidth(20);
 
                 // Set print area to include the summary
-                $sheet->getPageSetup()->setPrintArea('A1:E' . ($currentRow - 1));
+                $sheet->getPageSetup()->setPrintArea('A1:F' . ($currentRow - 1));
             }
         ];
     }
