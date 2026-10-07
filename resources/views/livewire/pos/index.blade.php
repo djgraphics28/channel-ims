@@ -176,7 +176,7 @@ new class extends Component {
     {
         $query = Order::query()
             ->withCount('order_items')
-            ->with(['customer', 'payment', 'order_items.product'])
+            ->with(['customer', 'server', 'payment', 'order_items.product'])
             ->where(function ($q) {
                 $q->where('order_number', 'like', '%' . $this->search . '%')
                     ->orWhereHas('customer', function ($q) {
@@ -449,6 +449,9 @@ new class extends Component {
                                     Customer Name</th>
                                 <th
                                     class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Server Name</th>
+                                <th
+                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                     Amount</th>
                                 <th
                                     class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -491,6 +494,8 @@ new class extends Component {
                                     </td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
                                         {{ strtoupper($quotation->customer->name ?? '') }}</td>
+                                    <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
+                                        {{ strtoupper($quotation->server->full_name ?? '') }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300">
                                         ₱{{ number_format($quotation->total_amount, 2) }}</td>
                                     <td class="whitespace-nowrap px-6 py-4 dark:text-gray-300 text-center">
